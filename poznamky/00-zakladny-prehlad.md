@@ -64,10 +64,11 @@ Registrácia je povinná, ak dron:
 
 - Registračné číslo prevádzkovateľa (e-reg číslo) treba **nalepiť na dron** a nahrať do systému diaľkovej identifikácie.
 - Registrácia platí v **jednej krajine** – tej, kde máš pobyt/sídlo. Nie je možné registrovať sa vo viacerých.
-- SR: Dopravný úrad, portál `dron.nsat.sk`.
+- SR: **Dopravný úrad**, elektronicky cez **slovensko.sk** (info: `letectvo.nsat.sk`) – detaily v `10-slovensko-registracia.md`.
 
 **Minimálny vek diaľkového pilota: 16 rokov.** Členský štát ho môže znížiť až na 12.
 Neplatí pre hračky, súkromne vyrobené drony < 250 g a pre let pod dohľadom kvalifikovaného pilota.
+Pozor: **prevádzkovateľ**, ktorý sa registruje, musí mať v SR **18 rokov**.
 
 ---
 

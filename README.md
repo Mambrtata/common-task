@@ -23,6 +23,7 @@ ktorý je podľa **Nariadenia EÚ 2019/947** podmienkou na lietanie s dronom v o
 | `poznamky/07-sukromie-a-udaje.md` | Privacy and data protection |
 | `poznamky/08-poistenie.md` | Insurance |
 | `poznamky/09-bezpecnostna-ochrana.md` | Security |
+| `poznamky/10-slovensko-registracia.md` | SK špecifiká – registrácia prevádzkovateľa cez slovensko.sk |
 
 Súbory k jednotlivým predmetom pribúdajú postupne, ako prechádzame kurzom.
 
@@ -35,4 +36,5 @@ Súbory k jednotlivým predmetom pribúdajú postupne, ako prechádzame kurzom.
 - Kurz je zadarmo, počítaj s cca 4 hodinami.
 
 > Poznámka: certifikát vydaný v Luxembursku je platný v celej EÚ, ale **registráciu prevádzkovateľa UAS**
-> si robíš v krajine svojho pobytu – pre SR na Dopravnom úrade (dron.nsat.sk).
+> si robíš v krajine svojho pobytu – pre SR cez slovensko.sk na Dopravnom úrade.
+> Viď `poznamky/10-slovensko-registracia.md`.
