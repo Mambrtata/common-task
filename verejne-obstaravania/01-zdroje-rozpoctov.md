@@ -3,6 +3,13 @@
 Cieľ: interná databáza jednotkových cien stavebných konštrukcií a prác, postavená na
 reálnych ocenených rozpočtoch (výkazoch výmer) z verejných zákaziek na Slovensku.
 
+**Účel je interný projekčný** – orientačné ceny v skorých fázach projektu (štúdia,
+DUR, DSP) a realitná kontrola smerných cien. Finálne rozpočty sa aj tak robia
+v CENKROS-e, takže databáza nenahrádza cenník, len ho dopĺňa o reálne trhové ceny
+z ponúk. To je výhoda aj technicky: CENKROS pracuje s TSKP triednikom, rovnako ako
+výkazy výmer z obstarávaní, takže sa dáta mapujú 1:1 na položky, s ktorými sa
+pracuje pri finálnom rozpočte.
+
 **Krátka odpoveď: áno, dá sa.** Od 31. 3. 2022 (novela č. 395/2021 Z. z. zákona
 č. 343/2015 Z. z. o verejnom obstarávaní) sa v profile obstarávateľa povinne zverejňujú
 **ponuky všetkých uchádzačov** – pri stavebných zákazkách teda ocenené výkazy výmer,
@@ -70,7 +77,10 @@ rozpočtom v prílohe. Oba zdroje sú verejné a dajú sa sťahovať hromadne.
 4. **Normalizácia**: kľúčovať položky podľa TSKP kódu + MJ; ukladať s metadátami
    (dátum ponuky, región, typ stavby, veľkosť zákazky, víťaz vs. neúspešná ponuka).
 5. **Databáza cien**: pre každý TSKP kód štatistika jednotkových cien (medián,
-   rozptyl, časový vývoj) – ekvivalent vlastného cenníka namiesto/popri CENEKON.
+   rozptyl, časový vývoj). Keďže finálny rozpočet ide z CENKROS-u, praktický
+   výstup je aj **koeficient reálna cena / smerná cena** po TSKP kódoch alebo
+   aspoň po dieloch (HSV/PSV skupiny) – ten sa dá priamo použiť na korekciu
+   odhadu v projekčnej fáze.
 
 ## Na čo si dať pozor
 
@@ -82,7 +92,9 @@ rozpočtom v prílohe. Oba zdroje sú verejné a dajú sa sťahovať hromadne.
 - **Autorské práva na popisy položiek**: samotné ceny a kódy sú fakty, ale
   **plné texty popisov položiek z komerčných cenníkových databáz (CENEKON/KROS)
   môžu byť licencované** – pre internú databázu je bezpečnejšie držať TSKP kód +
-  vlastný/skrátený popis.
+  vlastný/skrátený popis. Pri čisto internom projekčnom použití (finálny rozpočet
+  ide z licencovaného CENKROS-u) je riziko malé, ale ceny nezverejňovať navonok
+  s prevzatými popismi.
 - **Kvalita vstupov**: časť príloh sú skenované PDF; rátať s tým, že nie všetko
   sa zautomatizuje – merať úspešnosť extrakcie.
 - **Staršie zákazky**: povinnosť zverejňovať ponuky platí od 31. 3. 2022;
