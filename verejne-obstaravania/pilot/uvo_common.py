@@ -58,7 +58,7 @@ def zakazky_page(cpv: str, page_no: int):
     Vráti zoznam dictov: id, nazov, obstaravatel, cpv_popis, kraj, aktualizacia.
     """
     url = search_url("/vyhladavanie/vyhladavanie-zakaziek",
-                     cpv=cpv, druhZakazky="PRACE", pageNo=page_no)
+                     cpv=cpv, druhZakazky="PRACE", page=page_no)
     page = fetch(url)
     vysledky = []
     # riadky tabuľky: <tr> ... detail/<id> ... </tr>
@@ -88,7 +88,7 @@ def dokumenty_ids_pre_zakazku(nazov_zakazky: str, max_stran: int = 5):
     ids = []
     for page_no in range(1, max_stran + 1):
         url = search_url("/vyhladavanie/vyhladavanie-dokumentov",
-                         nazovZakazky=nazov_zakazky, pageNo=page_no)
+                         nazovZakazky=nazov_zakazky, page=page_no)
         page = fetch(url)
         found = re.findall(r"vyhladavanie-dokumentov/detail/(\d+)", page)
         nove = [i for i in dict.fromkeys(found) if i not in ids]
