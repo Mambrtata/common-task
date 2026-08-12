@@ -110,6 +110,47 @@ druhé kolo podľa TSKP dielov.
    aspoň po dieloch (HSV/PSV skupiny) – ten sa dá priamo použiť na korekciu
    odhadu v projekčnej fáze.
 
+## Očakávaný výstup
+
+Tri vrstvy, od surových dát po použiteľný nástroj pre projektanta:
+
+1. **Surová tabuľka cenových bodov** – jeden riadok = jedna položka z jednej ponuky:
+
+   | pole | príklad |
+   |---|---|
+   | zákazka (ID, názov, obstarávateľ) | „Rekonštrukcia ZŠ..." |
+   | dátum ponuky, región, typ budovy (CPV) | 2024-05, BB, škola |
+   | uchádzač + príznak víťaz/neúspešný | víťaz |
+   | TSKP kód, popis, MJ | 311238xxx, murivo z tehál..., m3 |
+   | množstvo, jednotková cena, cena spolu | 120 m3, 98,50 €, 11 820 € |
+
+2. **Agregovaný cenník ASR** – pre každý TSKP kód + MJ: počet pozorovaní, medián,
+   kvartilové rozpätie (p25–p75), vývoj v čase (po štvrťrokoch) a – kde máme
+   smernú cenu – **koeficient reál/CENKROS**.
+
+3. **Koeficienty po dieloch** (HSV 1, 2, 3... / PSV 711, 763, 771...) – fallback
+   pre položky s málo pozorovaniami a rýchla korekcia odhadu v skorej fáze.
+
+Technicky: SQLite/Parquet ako zdroj pravdy + Excel export cenníka pre projektantov.
+
+## Očakávaný objem dát (odhady, overí pilot)
+
+- **Zákazky**: pozemné stavby (CPV 4521*) vo vestníku rádovo **stovky až ~1 500
+  výsledkov ročne** (nadlimit + podlimit). Pilot školy + administratíva za 2 roky:
+  odhadom **300–600 zákaziek**.
+- **Výťažnosť**: ponuky v profile sú povinné od 31. 3. 2022; použiteľný Excel
+  výkaz výmer čakám pri **50–70 %** zákaziek (zvyšok PDF/skeny/chýbajúce).
+- **Ponúk na zákazku**: v stavebníctve typicky **2–5**, priemer ~3.
+- **ASR položiek na rozpočet**: malé rekonštrukcie 100–300, novostavby 500–1500;
+  priemer ~300–500.
+- **Súčet za pilot**: ~400 zákaziek × 3 ponuky × 400 položiek ≈ **rádovo
+  200–500 tisíc cenových bodov**. Pri plnom zábere (všetky pozemné stavby od
+  2022 doteraz + rozpočty zo zmlúv v CRZ) rádovo **jednotky miliónov**.
+- **Pokrytie položiek**: koncentruje sa – **top ~1 000–2 000 bežných ASR položiek**
+  (murivá, betóny, omietky, SDK, izolácie, podlahy, zateplenie...) bude mať
+  desiatky až stovky pozorovaní → robustné mediány. Dlhý chvost špeciálnych
+  položiek ostane riedky → tam nastupujú koeficienty po dieloch.
+
 ## Na čo si dať pozor
 
 - **Taktické oceňovanie**: uchádzači niektoré položky podhodnocujú a iné
