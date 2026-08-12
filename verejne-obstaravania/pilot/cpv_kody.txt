@@ -1,7 +1,23 @@
-# CPV kódy – pozemné stavby (výber pre pilot: školy + administratíva + zdravotníctvo)
-45214200  # stavebné práce na stavbe budov škôl
-45214000  # stavebné práce na stavbe budov vzdelávacích inštitúcií
-45213150  # kancelárske budovy
+# CPV kódy – pozemné stavby (plný záber pre zber vzorky)
+# občianska vybavenosť
+45214200  # školy
+45214000  # budovy vzdelávacích inštitúcií
+45214100  # materské školy
 45215100  # budovy zdravotníckych zariadení
-45211350  # viacúčelové budovy
+45215200  # budovy sociálnych služieb
 45212000  # budovy pre voľný čas, šport, kultúru
+45216000  # policajné/hasičské stanice, budovy justície
+# bývanie
+45211000  # viacbytové budovy a rodinné domy
+45211100  # domy
+45211340  # bytové domy
+45211341  # byty
+45211350  # viacúčelové (polyfunkčné) budovy
+# komercia a administratíva
+45213000  # obchodné, priemyselné a dopravné budovy
+45213100  # obchodné budovy
+45213150  # kancelárske budovy
+45213200  # sklady
+# všeobecné
+45210000  # stavebné práce na stavbe budov (generický kód)
+45262700  # prestavba budov
