@@ -62,3 +62,18 @@ Priečinok `data/` sa neverzuje (viď `.gitignore`).
 
 Ak výťažnosť vyjde rozumne: rozšíriť 03 na plnú extrakciu (kód, popis, MJ,
 množstvo, jednotková cena → SQLite `ceny.db`) a doplniť zdroj CRZ (nočné dávky).
+
+## Krok 4: ceny.db
+
+`python3 04_postav_db.py` postaví z `data/subory/` SQLite databázu:
+`zakazky`, `cenove_body` (surové položky), `cennik_tskp` (katalóg kod+mj →
+n, medián, p25–p75) a `cennik_fts` (fulltext s odstránenou diakritikou).
+KROS kódy sa normalizujú (prípona `.S` sa zlučuje). Ceny bez DPH.
+Snapshot z pilotu: `ceny-pilot-2026-08.db`.
+
+Príklad dotazu (projektový Claude Code):
+```sql
+SELECT c.kod, c.mj, c.popis, c.n, round(c.median,2)
+FROM cennik_tskp c JOIN cennik_fts f ON c.kod=f.kod AND c.mj=f.mj
+WHERE cennik_fts MATCH 'beton zaklad*' ORDER BY c.n DESC;
+```
