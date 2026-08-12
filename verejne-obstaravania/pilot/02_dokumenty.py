@@ -45,7 +45,12 @@ def main():
     args = ap.parse_args()
 
     with (DATA / "zakazky.csv").open(encoding="utf-8") as f:
-        zakazky = list(csv.DictReader(f))[: args.limit_zakaziek]
+        zakazky = list(csv.DictReader(f))
+    # rovnomerná vzorka naprieč zoznamom (čerstvé záznamy sú bežiace súťaže
+    # bez ponúk, staršie sú častejšie ukončené so zverejnenými ponukami)
+    if len(zakazky) > args.limit_zakaziek:
+        krok = len(zakazky) / args.limit_zakaziek
+        zakazky = [zakazky[int(i * krok)] for i in range(args.limit_zakaziek)]
 
     out_rows = []
     for z in zakazky:
