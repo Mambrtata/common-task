@@ -1,0 +1,7 @@
+# CPV kódy – pozemné stavby (výber pre pilot: školy + administratíva + zdravotníctvo)
+45214200  # stavebné práce na stavbe budov škôl
+45214000  # stavebné práce na stavbe budov vzdelávacích inštitúcií
+45213150  # kancelárske budovy
+45215100  # budovy zdravotníckych zariadení
+45211350  # viacúčelové budovy
+45212000  # budovy pre voľný čas, šport, kultúru
