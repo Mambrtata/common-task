@@ -23,6 +23,11 @@ try:
 except ImportError:
     raise SystemExit("chýba openpyxl: pip install openpyxl")
 
+try:
+    import pypdfium2 as pdfium
+except ImportError:
+    pdfium = None   # PDF analýza sa preskočí
+
 HERE = pathlib.Path(__file__).parent
 DATA = HERE / "data"
 
@@ -85,6 +90,41 @@ def extrahuj_polozky(data: bytes):
     return polozky
 
 
+# riadok položky v PDF rozpočte (export z KROS): kód, popis, MJ, čísla
+RE_PDF_POLOZKA = re.compile(
+    r"(\d{6,9}(?:\.\w+)?)\s+(.{10,120}?)\s+"
+    r"(m2|m3|m|ks|kus|t|kg|súb|sub|bm|hod)\s+"
+    r"([\d\s]+(?:[.,]\d+)?)\s+([\d\s]+(?:[.,]\d+)?)", re.I)
+
+
+def extrahuj_polozky_pdf(cesta: pathlib.Path):
+    """Z textového PDF rozpočtu vytiahni položky. Vráti (polozky, ma_text)."""
+    polozky, ma_text = [], False
+    if pdfium is None:
+        return polozky, ma_text
+    try:
+        pdf = pdfium.PdfDocument(str(cesta))
+    except Exception:
+        return polozky, ma_text
+    try:
+        for page in pdf:
+            try:
+                text = page.get_textpage().get_text_range()
+            except Exception:
+                continue
+            if len(text) > 100:
+                ma_text = True
+            for m in RE_PDF_POLOZKA.finditer(text.replace("\r", "\n")):
+                polozky.append({"harok": "pdf", "kod": m.group(1),
+                                "popis": m.group(2).strip()[:90],
+                                "mj": m.group(3).lower(),
+                                "cisla": [m.group(4).replace(" ", ""),
+                                          m.group(5).replace(" ", "")]})
+    finally:
+        pdf.close()
+    return polozky, ma_text
+
+
 def main():
     subory_dir = DATA / "subory"
     if not subory_dir.exists():
@@ -97,7 +137,8 @@ def main():
     for zdir in sorted(subory_dir.iterdir()):
         if not zdir.is_dir():
             continue
-        stav = {"suborov": 0, "xlsx": 0, "vykazov": 0, "poloziek": 0}
+        stav = {"suborov": 0, "xlsx": 0, "vykazov": 0, "poloziek": 0,
+                "pdf_text": 0, "pdf_sken": 0}
         for f in zdir.rglob("*"):
             if not f.is_file():
                 continue
@@ -113,6 +154,17 @@ def main():
                     for p in polozky[:5]:
                         ukazka.append({"zakazka_id": zdir.name, "subor": meno,
                                        **{k: str(v) for k, v in p.items()}})
+            if f.suffix.lower() == ".pdf":
+                polozky, ma_text = extrahuj_polozky_pdf(f)
+                stav["pdf_text" if ma_text else "pdf_sken"] += 1
+                if ma_text:
+                    stats["pdf_textovych"] += 1
+                if len(polozky) >= 10:
+                    stav["vykazov"] += 1
+                    stav["poloziek"] += len(polozky)
+                    for p in polozky[:5]:
+                        ukazka.append({"zakazka_id": zdir.name, "subor": f.name,
+                                       **{k: str(v) for k, v in p.items()}})
         zakazky_stav[zdir.name] = stav
 
     uspesne = sum(1 for s in zakazky_stav.values() if s["vykazov"] > 0)
@@ -123,7 +175,9 @@ def main():
     r.append(f"- zákaziek s aspoň 1 čitateľným výkazom výmer: **{uspesne}** "
              f"({100 * uspesne // max(celkom, 1)} %)")
     r.append(f"- súborov spolu: {stats['suborov']}")
-    r.append(f"- položiek extrahovaných spolu: "
+    r.append(f"- PDF s textovou vrstvou: {stats['pdf_textovych']} "
+             f"(zvyšok PDF sú skeny -> OCR)")
+    r.append(f"- položiek extrahovaných spolu (xlsx + textové PDF): "
              f"{sum(s['poloziek'] for s in zakazky_stav.values())}")
     r.append("")
     r.append("## Prípony súborov")
@@ -133,11 +187,11 @@ def main():
     r.append("")
     r.append("## Po zákazkách")
     r.append("")
-    r.append("| zákazka | súborov | xlsx | výkazov | položiek |")
-    r.append("|---|---|---|---|---|")
+    r.append("| zákazka | súborov | xlsx | pdf text | pdf sken | výkazov | položiek |")
+    r.append("|---|---|---|---|---|---|---|")
     for zid, s in zakazky_stav.items():
-        r.append(f"| {zid} | {s['suborov']} | {s['xlsx']} | {s['vykazov']} "
-                 f"| {s['poloziek']} |")
+        r.append(f"| {zid} | {s['suborov']} | {s['xlsx']} | {s['pdf_text']} "
+                 f"| {s['pdf_sken']} | {s['vykazov']} | {s['poloziek']} |")
 
     (DATA / "report.md").write_text("\n".join(r), encoding="utf-8")
     with (DATA / "ukazka_poloziek.csv").open("w", newline="",

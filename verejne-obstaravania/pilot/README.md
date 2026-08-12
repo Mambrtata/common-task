@@ -22,7 +22,7 @@ plne funkčné cez GET parametre.
 ## Spustenie
 
 ```bash
-pip install openpyxl   # len pre krok 3
+pip install openpyxl pypdfium2   # len pre krok 3
 
 python3 01_zakazky.py --max-stran 3        # -> data/zakazky.csv
 python3 02_dokumenty.py --limit-zakaziek 20  # -> data/subory/, data/dokumenty.csv
