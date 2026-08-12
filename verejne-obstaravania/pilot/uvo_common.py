@@ -113,6 +113,12 @@ def dokument_detail(doc_id: str):
         subory.append(BASE + html.unescape(href))
     nazvy_suborov = [html.unescape(n)
                      for n in re.findall(r"Názov súboru:\s*([^<]+)", page)]
+    velkosti_mb = []
+    for cislo, jednotka in re.findall(
+            r"Veľkosť:\s*([\d\s.,]+)\s*(GB|MB|KB|B)", page, re.I):
+        n = float(cislo.replace(" ", "").replace(",", "."))
+        faktor = {"B": 1e-6, "KB": 1e-3, "MB": 1.0, "GB": 1e3}
+        velkosti_mb.append(n * faktor[jednotka.upper()])
 
     return {
         "doc_id": doc_id,
@@ -124,4 +130,5 @@ def dokument_detail(doc_id: str):
         "zverejnenie": pole("Dátum zverejnenia"),
         "download_linky": subory,
         "nazvy_suborov": [n.strip() for n in nazvy_suborov],
+        "velkosti_mb": velkosti_mb,
     }

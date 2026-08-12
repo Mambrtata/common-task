@@ -25,6 +25,14 @@ DATA = HERE / "data"
 TYPY_PONUKY = ("ponuky uchádzačov", "ponuka")
 TYPY_PODKLADY = ("súťažné podklady",)
 
+# sťahujeme len typy, v ktorých vie byť výkaz výmer (zip: ponuky bývajú
+# zabalené aj s xlsx vnútri)
+PRIPONY_OK = (".pdf", ".xls", ".xlsx", ".xlsm", ".zip")
+RE_SKEN = re.compile(r"(sken|scan)")
+# PDF berieme len s názvom, ktorý vyzerá na rozpočet / výkaz / cenu
+RE_ROZPOCET = re.compile(
+    r"(rozpoc|vykaz|cenov|kalkul|polozk|zadanie|kriteri|aukci|\bc2\b|\bvv\b)")
+
 
 def normalizuj(s: str) -> str:
     s = unicodedata.normalize("NFKD", s)
@@ -37,11 +45,31 @@ def bezpecny_nazov(s: str) -> str:
     return re.sub(r"[^a-z0-9._-]+", "_", s)[:120] or "subor"
 
 
+def subor_zaujimavy(nazov: str, vsetky: bool) -> bool:
+    """Filter súborov pred sťahovaním – šetrí čas aj disk."""
+    if vsetky:
+        return True
+    n = normalizuj(nazov)
+    pripona = pathlib.Path(n).suffix
+    if pripona not in PRIPONY_OK:
+        return False
+    if RE_SKEN.search(n):
+        return False
+    # Excel/zip berieme vždy, PDF len ak názov naznačuje rozpočet/cenu
+    if pripona == ".pdf" and not RE_ROZPOCET.search(n):
+        return False
+    return True
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit-zakaziek", type=int, default=20)
     ap.add_argument("--aj-podklady", action="store_true",
                     help="sťahuj aj súťažné podklady (neocenené výkazy)")
+    ap.add_argument("--vsetky-subory", action="store_true",
+                    help="vypni filter prípon a názvov (sťahuj všetko)")
+    ap.add_argument("--max-pdf-mb", type=float, default=20.0,
+                    help="PDF väčšie ako tento limit preskoč (skeny)")
     args = ap.parse_args()
 
     with (DATA / "zakazky.csv").open(encoding="utf-8") as f:
@@ -82,6 +110,16 @@ def main():
             for i, link in enumerate(d["download_linky"]):
                 nazov = (d["nazvy_suborov"][i] if i < len(d["nazvy_suborov"])
                          else f"subor_{i}")
+                if not subor_zaujimavy(nazov, args.vsetky_subory):
+                    continue
+                # veľké PDF = takmer isto sken (text z KROS-u má jednotky MB)
+                velkost = (d["velkosti_mb"][i]
+                           if i < len(d["velkosti_mb"]) else 0)
+                if (nazov.lower().endswith(".pdf")
+                        and velkost > args.max_pdf_mb):
+                    print(f"  - preskakujem {nazov} "
+                          f"({velkost:.0f} MB, zrejme sken)")
+                    continue
                 dst = ciel / f"{did}_{bezpecny_nazov(nazov)}"
                 if not dst.exists():
                     try:
