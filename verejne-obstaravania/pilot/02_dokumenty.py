@@ -91,13 +91,19 @@ def main():
     for z in zakazky:
         print(f"\n=== [{z['id']}] {z['nazov'][:70]}")
         try:
-            doc_ids = dokumenty_ids_pre_zakazku(z["nazov"])
+            dokumenty = dokumenty_ids_pre_zakazku(z["nazov"])
         except RuntimeError as e:
             print(f"  ! vyhľadávanie zlyhalo: {e}")
             continue
-        print(f"  dokumentov nájdených: {len(doc_ids)}")
+        # typ vidno už vo výsledkoch – detail otváraj len pri relevantných
+        relevantne = [
+            (did, typ) for did, typ in dokumenty
+            if any(t in typ.lower() for t in TYPY_PONUKY)
+            or (args.aj_podklady
+                and any(t in typ.lower() for t in TYPY_PODKLADY))]
+        print(f"  dokumentov: {len(dokumenty)}, relevantných: {len(relevantne)}")
 
-        for did in doc_ids:
+        for did, _typ in relevantne:
             try:
                 d = dokument_detail(did)
             except RuntimeError as e:

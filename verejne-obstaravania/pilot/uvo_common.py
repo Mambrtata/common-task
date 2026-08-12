@@ -84,18 +84,30 @@ def zakazky_page(cpv: str, page_no: int):
 # -------------------------------------------------------------- dokumenty ---
 
 def dokumenty_ids_pre_zakazku(nazov_zakazky: str, max_stran: int = 5):
-    """Vyhľadaj IDs dokumentov podľa názvu zákazky (substring match na ÚVO)."""
-    ids = []
+    """Vyhľadaj dokumenty podľa názvu zákazky (substring match na ÚVO).
+
+    Vráti list dvojíc (doc_id, typ_dokumentu) – typ je priamo vo výsledkoch,
+    takže detail stačí otvárať len pri relevantných typoch.
+    """
+    vysledky, videne = [], set()
     for page_no in range(1, max_stran + 1):
         url = search_url("/vyhladavanie/vyhladavanie-dokumentov",
                          nazovZakazky=nazov_zakazky, page=page_no)
         page = fetch(url)
-        found = re.findall(r"vyhladavanie-dokumentov/detail/(\d+)", page)
-        nove = [i for i in dict.fromkeys(found) if i not in ids]
+        nove = False
+        for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", page, re.S):
+            m = re.search(r"vyhladavanie-dokumentov/detail/(\d+)", tr)
+            if not m or m.group(1) in videne:
+                continue
+            videne.add(m.group(1))
+            nove = True
+            bunky = [clean(td) for td in
+                     re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)]
+            typ = bunky[0] if bunky else ""
+            vysledky.append((m.group(1), typ))
         if not nove:
             break
-        ids.extend(nove)
-    return ids
+    return vysledky
 
 
 def dokument_detail(doc_id: str):
