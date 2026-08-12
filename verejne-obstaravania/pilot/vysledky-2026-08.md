@@ -107,3 +107,25 @@ Beh 12. 8. 2026, skripty v tomto priečinku.
 | 552837 | 1 | 3 | 0 | 0 | 3 | 321 |
 | 556578 | 1 | 0 | 0 | 0 | 0 | 0 |
 | 557588 | 14 | 0 | 7 | 7 | 0 | 0 |
+---
+
+# Dodatok: široký zber (2. beh, 12. 8. 2026 večer)
+
+Vzorka rozšírená na **200 zákaziek z 3 048** (19 CPV kódov – celé pozemné
+stavby vrátane bytoviek, polyfunkcie, komercie). Zber so zrýchleným filtrom
+(typ dokumentu z výsledkov vyhľadávania, len rozpočtovo relevantné súbory,
+PDF > 20 MB preskočené ako skeny). Na disku 2,1 GB / 598 súborov.
+
+## Finálne čísla (kumulatívne, obe vzorky)
+
+- zákaziek s aspoň 1 čitateľným výkazom výmer: **41 zo 135** so súbormi (30 %)
+- extrahovaných položiek: **28 591**, z toho **25 278 s jednotkovou cenou**
+- katalóg `cennik_tskp`: **7 676 položiek**, z toho 2 598 s n ≥ 3
+  a 1 596 s n ≥ 5
+- PDF s textovou vrstvou: 229 zo 498 (46 %)
+- segmenty s dátami: školy (ZŠ/SŠ/MŠ), kancelárske budovy, zdravotníctvo,
+  nemocnice, polyfunkčné budovy
+- vo výkazoch potvrdený výskyt **figúr** (rozpisov výmer) vrátane popisov
+  a odpočtov otvorov – plán: tabuľka `figury` v ďalšej verzii DB
+
+Snapshot databázy: `ceny-pilot-2026-08.db` (v tomto priečinku).
