@@ -178,6 +178,22 @@ nie len medián"). Skill `nacenovanie` zachytí opakovaný postup.
 
 ### Typické scenáre
 
+0. **Tvorba výkazu výmer** (hlavný use case): projektant výkaz nemá – tvorí ho
+   k projektu. Zadá popis objektu a základné výmery (zastavaná plocha, podlažia,
+   plochy fasády/striech/priečok, skladby konštrukcií) a Claude:
+   - z databázy reálnych rozpočtov **podobných stavieb** vytiahne typickú
+     štruktúru položiek (ktoré TSKP položky sa v takom objekte reálne
+     vyskytujú, po dieloch HSV/PSV),
+   - využije **spoluvýskyt položiek** – napr. k ETICS fasáde automaticky patrí
+     lepenie, kotvenie, sieťka, omietka, soklové lišty, lešenie, presun hmôt;
+     presne tie sprievodné položky, na ktoré sa zabúda,
+   - odvodené množstvá dopočíta z výmer (plocha stien → omietka, murivo...),
+     zvyšok nechá na doplnenie a označí,
+   - na záver **kontrola úplnosti**: porovnanie draftu proti reálnym rozpočtom
+     podobných objektov – „v 80 % podobných stavieb je aj položka X, nechýba ti?",
+   - výstup: xlsx v štruktúre importovateľnej do CENKROS-u, kde sa výkaz
+     finalizuje a ocení.
+
 1. **Nacenenie výkazu výmer**: projektant hodí neocenený výkaz (Excel export
    z CENKROS-u) do `vstupy/` a napíše „naceň". Claude:
    - sparsuje položky (TSKP kód, popis, MJ, množstvo),
