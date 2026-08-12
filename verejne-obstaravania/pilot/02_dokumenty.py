@@ -80,7 +80,14 @@ def main():
         krok = len(zakazky) / args.limit_zakaziek
         zakazky = [zakazky[int(i * krok)] for i in range(args.limit_zakaziek)]
 
-    out_rows = []
+    # CSV zapisuj priebežne, nech sa pri prerušení behu nič nestratí
+    out = DATA / "dokumenty.csv"
+    out_f = out.open("w", newline="", encoding="utf-8")
+    writer = csv.DictWriter(out_f, fieldnames=["zakazka_id", "zakazka",
+                                               "doc_id", "typ", "dodavatel",
+                                               "zverejnenie", "subor"])
+    writer.writeheader()
+    pocet = 0
     for z in zakazky:
         print(f"\n=== [{z['id']}] {z['nazov'][:70]}")
         try:
@@ -129,22 +136,18 @@ def main():
                     except RuntimeError as e:
                         print(f"  ! download zlyhal: {e}")
                         continue
-                out_rows.append({
+                writer.writerow({
                     "zakazka_id": z["id"], "zakazka": z["nazov"],
                     "doc_id": did, "typ": d["typ_dokumentu"],
                     "dodavatel": d["dodavatel"],
                     "zverejnenie": d["zverejnenie"],
                     "subor": str(dst.relative_to(DATA)),
                 })
+                out_f.flush()
+                pocet += 1
 
-    out = DATA / "dokumenty.csv"
-    with out.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=["zakazka_id", "zakazka", "doc_id",
-                                          "typ", "dodavatel", "zverejnenie",
-                                          "subor"])
-        w.writeheader()
-        w.writerows(out_rows)
-    print(f"\nSpolu {len(out_rows)} súborov -> {out}")
+    out_f.close()
+    print(f"\nSpolu {pocet} súborov -> {out}")
 
 
 if __name__ == "__main__":
