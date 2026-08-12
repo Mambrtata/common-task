@@ -77,3 +77,11 @@ SELECT c.kod, c.mj, c.popis, c.n, round(c.median,2)
 FROM cennik_tskp c JOIN cennik_fts f ON c.kod=f.kod AND c.mj=f.mj
 WHERE cennik_fts MATCH 'beton zaklad*' ORDER BY c.n DESC;
 ```
+
+## Figúry (rozpisy výmer)
+
+Časť xlsx výkazov obsahuje figúry – výrazy výpočtu výmer, aj s popisom
+("objem, výkopy pre základové pätky" 0,5*0,6*0,8*2; "2.NP" 19+18; odpočty
+otvorov ...-0,80*2,05*2). Do ďalšej verzie ceny.db pridať tabuľku `figury`
+(kod -> text -> hodnota) previazanú na cenove_body – učebný materiál pre
+tvorbu výkazov (ako sa výmera počíta z rozmerov konštrukcie).
