@@ -16,6 +16,33 @@ pracuje pri finálnom rozpočte.
 typicky v Exceli. K tomu Centrálny register zmlúv obsahuje zmluvy o dielo aj s oceneným
 rozpočtom v prílohe. Oba zdroje sú verejné a dajú sa sťahovať hromadne.
 
+## Rozsah: pozemné stavby, časť ASR
+
+Primárny záber je **architektonicko-stavebné riešenie (ASR) pozemných stavieb** –
+teda stavebná časť budov, bez profesií (ZTI, ÚK, ELI, VZT...).
+
+**Filter zákaziek (CPV):** pozemné stavby = `45210000-2` (stavebné práce na stavbe
+budov) a podkódy – napr. `45214xxx` školy, `45215xxx` zdravotníctvo a sociálne
+stavby, `45211xxx` bytové budovy, `45213xxx` komerčné/administratívne budovy.
+Rekonštrukcie budov bývajú aj pod všeobecným `45000000-7` + upresnenie v názve.
+
+**Filter položiek (TSKP diely) – čo patrí do ASR:**
+
+- **HSV celé**: 1 zemné práce, 2 zakladanie, 3 zvislé a kompletné konštrukcie,
+  4 vodorovné konštrukcie, 5 komunikácie (ak sú súčasťou objektu), 6 úpravy
+  povrchov/podlahy/výplne otvorov, 9 ostatné konštrukcie a búranie, presuny hmôt.
+- **PSV – remeslá ASR**: 711–717 izolácie (hydro, tepelné, akustické),
+  762 tesárske, 763 suchá výstavba (SDK), 764 klampiarske, 765 krytiny tvrdé,
+  766 stolárske, 767 zámočnícke, 771–776 podlahy a dlažby, 781–784 obklady
+  a maľby, 783 nátery, 787 zasklievanie.
+- **Vylúčiť (profesie)**: 721–727 zdravotechnika, 731–735 ústredné kúrenie,
+  plynoinštalácie, montážne diely M21 elektromontáže, M24 VZT, M33/M36 a pod.
+
+Praktická pomôcka: vo výkazoch výmer pozemných stavieb bývajú časti aj tak
+členené samostatne („ASR", „ZTI", „ÚK", „ELI"...) po hárkoch Excelu alebo po
+samostatných súboroch – prvé kolo filtra teda vie ísť podľa názvov hárkov/súborov,
+druhé kolo podľa TSKP dielov.
+
 ## Zdroje dát (od najhodnotnejšieho)
 
 ### 1. Profil obstarávateľa na ÚVO / IS EPVO – ponuky uchádzačov
@@ -67,13 +94,14 @@ rozpočtom v prílohe. Oba zdroje sú verejné a dajú sa sťahovať hromadne.
 ## Navrhovaný postup (pipeline)
 
 1. **Index zákaziek**: z vestníka ÚVO (príp. cez uvostat API) vyfiltrovať zákazky
-   s CPV 45* (stavebné práce), uložiť ID zákazky, obstarávateľa, predpokladanú
-   hodnotu, dátum, región.
+   s CPV 4521* (pozemné stavby, viď Rozsah vyššie), uložiť ID zákazky,
+   obstarávateľa, predpokladanú hodnotu, dátum, región, typ budovy.
 2. **Stiahnutie dokumentov**: k zákazke stiahnuť z profilu prílohy – ponuky
    uchádzačov a súťažné podklady; paralelne z CRZ nočných dávok páry
    zmluva o dielo + rozpočet.
 3. **Extrakcia položiek**: parsovať Excel výkazy výmer (TSKP kód, popis, MJ,
-   množstvo, jednotková cena); PDF cez extrakciu tabuliek/OCR.
+   množstvo, jednotková cena); PDF cez extrakciu tabuliek/OCR. Ponechať len
+   časti ASR (podľa názvov hárkov/súborov a TSKP dielov, viď Rozsah).
 4. **Normalizácia**: kľúčovať položky podľa TSKP kódu + MJ; ukladať s metadátami
    (dátum ponuky, región, typ stavby, veľkosť zákazky, víťaz vs. neúspešná ponuka).
 5. **Databáza cien**: pre každý TSKP kód štatistika jednotkových cien (medián,
@@ -108,5 +136,6 @@ rozpočtom v prílohe. Oba zdroje sú verejné a dajú sa sťahovať hromadne.
 - Slovensko sa zapája do európskeho **Public Procurement Data Space (PPDS)** –
   sledovať, či to prinesie lepší strojový prístup k dokumentom
   ([aktualita ÚVO](https://www.uvo.gov.sk/aktualne-temy/aktualita/slovensko-ziska-novy-pristup-k-informaciam-o-verejnom-obstaravani-2025)).
-- Rozsah pilotu: navrhujem začať jedným segmentom (napr. pozemné stavby škôl/úradov
-  za posledné 2 roky) a na ňom overiť výťažnosť extrakcie.
+- Rozsah pilotu: navrhujem začať jedným podsegmentom pozemných stavieb (napr.
+  školy/úrady, CPV 45214xxx + 45213xxx, za posledné 2 roky) a na ňom overiť
+  výťažnosť extrakcie ASR položiek.
