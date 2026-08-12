@@ -151,6 +151,57 @@ Technicky: SQLite/Parquet ako zdroj pravdy + Excel export cenníka pre projektan
   desiatky až stovky pozorovaní → robustné mediány. Dlhý chvost špeciálnych
   položiek ostane riedky → tam nastupujú koeficienty po dieloch.
 
+## Práca s databázou v lokálnom Claude Code (nacenovanie)
+
+Cieľový stav: projektant má repo s databázou a Claude Code nad ňou vie robiť
+odhady a naceňovať výkazy výmer konverzačne.
+
+### Prečo SQLite
+
+Jeden súbor (`ceny.db`), žiadny server, Claude Code sa naň vie pýtať priamo cez
+`sqlite3` v Bashi alebo cez Python. Verzovateľné, prenosné, funguje offline.
+
+### Štruktúra repa
+
+```
+cenova-db/
+├── CLAUDE.md                  # schéma DB, pravidlá naceňovania, typické dotazy
+├── ceny.db                    # SQLite: cenove_body, cennik_tskp, koef_diely
+├── .claude/skills/nacenovanie/SKILL.md   # postup pre Claude pri naceňovaní
+├── pipeline/                  # skripty na ingest (stiahnutie, parsovanie, agregácia)
+└── vstupy/                    # sem projektant hodí výkaz výmer na nacenenie
+```
+
+`CLAUDE.md` je kľúčový – popíše schému tabuliek, význam stĺpcov, časové
+indexovanie a pravidlá (napr. „vždy uvádzaj počet pozorovaní a rozpätie,
+nie len medián"). Skill `nacenovanie` zachytí opakovaný postup.
+
+### Typické scenáre
+
+1. **Nacenenie výkazu výmer**: projektant hodí neocenený výkaz (Excel export
+   z CENKROS-u) do `vstupy/` a napíše „naceň". Claude:
+   - sparsuje položky (TSKP kód, popis, MJ, množstvo),
+   - napáruje na `cennik_tskp` – najprv presný kód + MJ, potom prefix kódu
+     (skupina/diel) + podobnosť popisu (tu je LLM lepší než skript – vie, že
+     „priečka SDK hr. 125 mm" ≈ „priečka sadrokartónová 125"),
+   - doplní medián + p25–p75 + počet pozorovaní, nenapárované označí,
+   - vráti ocenený Excel + súhrn (cena spolu, položky s nízkou istotou).
+2. **Rýchly odhad v štúdii**: „koľko vychádza m² zateplenia fasády ETICS 150 mm
+   z reálnych ponúk za posledný rok?" → jeden SQL dotaz, odpoveď s kontextom.
+3. **Kontrola rozpočtu**: hotový rozpočet z CENKROS-u porovnať proti mediánom
+   z ponúk – vyznačiť položky mimo p25–p75 (kandidáti na vyjednávanie/chybu).
+4. **Aktualizácia dát**: „stiahni nové zákazky za posledný mesiac" → Claude
+   spustí pipeline skripty a reportne, čo pribudlo.
+
+### Pravidlá pre skill (návrh)
+
+- Cenu vždy uvádzať s počtom pozorovaní a dátumovým oknom (default: posledné
+  4 štvrťroky, staršie ceny indexovať).
+- Pri páde na prefix/popisové párovanie explicitne označiť zníženú istotu.
+- Nenaceňovať položky bez dát mlčky – vypísať ich zoznam (doplní sa z CENKROS-u).
+- Výstup vo formáte kompatibilnom so spätným importom (xlsx so zachovanou
+  štruktúrou vstupu).
+
 ## Na čo si dať pozor
 
 - **Taktické oceňovanie**: uchádzači niektoré položky podhodnocujú a iné
