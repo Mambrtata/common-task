@@ -70,6 +70,9 @@ def main():
                     help="vypni filter prípon a názvov (sťahuj všetko)")
     ap.add_argument("--max-pdf-mb", type=float, default=20.0,
                     help="PDF väčšie ako tento limit preskoč (skeny)")
+    ap.add_argument("--shard", default="",
+                    help="paralelný beh: 'i/N' spracuje riadky s indexom "
+                         "i mod N (napr. 0/4)")
     args = ap.parse_args()
 
     with (DATA / "zakazky.csv").open(encoding="utf-8") as f:
@@ -79,9 +82,14 @@ def main():
     if len(zakazky) > args.limit_zakaziek:
         krok = len(zakazky) / args.limit_zakaziek
         zakazky = [zakazky[int(i * krok)] for i in range(args.limit_zakaziek)]
+    sufix = ""
+    if args.shard:
+        i, n = (int(x) for x in args.shard.split("/"))
+        zakazky = [z for j, z in enumerate(zakazky) if j % n == i]
+        sufix = f"_shard{i}"
 
     # CSV zapisuj priebežne, nech sa pri prerušení behu nič nestratí
-    out = DATA / "dokumenty.csv"
+    out = DATA / f"dokumenty{sufix}.csv"
     out_f = out.open("w", newline="", encoding="utf-8")
     writer = csv.DictWriter(out_f, fieldnames=["zakazka_id", "zakazka",
                                                "doc_id", "typ", "dodavatel",

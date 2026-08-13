@@ -38,7 +38,8 @@ def main():
             videne.update(r["id"] for r in nove)
             vsetky.extend(nove)
             print(f"CPV {cpv} strana {page_no}: +{len(nove)} zákaziek")
-            if len(riadky) < 10:
+            # za poslednou stránkou vracia server tie isté riadky
+            if len(riadky) < 10 or not nove:
                 break
 
     out = DATA / "zakazky.csv"
