@@ -112,3 +112,13 @@ python run_local.py --len-db       # len prebuduj databázu z už stiahnutých d
 `run_local.py` reštartuje padnuté vlákna sám, priebežne prerieďuje ZIPy
 a dá sa kedykoľvek prerušiť (Ctrl+C) – pokračuje cez `data/hotovo.txt`.
 Očakávaj 12–24 h a ~15 GB na disku (po prerieďovaní).
+
+## Snapshot databázy
+
+V repe je databáza gzipnutá (`ceny-pilot-2026-08.db.gz`, ~21 MB) – nekomprimovaná
+má ~94 MB a GitHub má limit 100 MB na súbor. Rozbalenie:
+
+```bash
+gunzip -k ceny-pilot-2026-08.db.gz      # Linux/macOS
+# Windows: rozbaliť 7-Zipom alebo `python -c "import gzip,shutil;shutil.copyfileobj(gzip.open('ceny-pilot-2026-08.db.gz'),open('ceny-pilot-2026-08.db','wb'))"`
+```
