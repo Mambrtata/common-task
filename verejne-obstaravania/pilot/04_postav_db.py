@@ -172,6 +172,48 @@ def main():
     con.executemany("INSERT INTO cennik_tskp VALUES (?,?,?,?,?,?,?)", agg)
     print(f"cennik_tskp: {len(agg)} položiek katalógu")
 
+    # --- číselník dielov (filter ASR vs. profesie cez prefix kódu) ---
+    con.executescript("""
+        DROP TABLE IF EXISTS diely;
+        CREATE TABLE diely (prefix TEXT PRIMARY KEY, nazov TEXT, kategoria TEXT);
+    """)
+    con.executemany("INSERT INTO diely VALUES (?,?,?)", [
+        ("1", "Zemné práce", "ASR-HSV"),
+        ("2", "Zakladanie", "ASR-HSV"),
+        ("3", "Zvislé a kompletné konštrukcie", "ASR-HSV"),
+        ("4", "Vodorovné konštrukcie", "ASR-HSV"),
+        ("5", "Komunikácie", "ASR-HSV"),
+        ("6", "Úpravy povrchov, podlahy, výplne", "ASR-HSV"),
+        ("9", "Ostatné konštrukcie, búranie, presuny", "ASR-HSV"),
+        ("711", "Izolácie proti vode", "ASR-PSV"),
+        ("712", "Povlakové krytiny", "ASR-PSV"),
+        ("713", "Tepelné izolácie", "ASR-PSV"),
+        ("721", "ZTI – kanalizácia", "profesie"),
+        ("722", "ZTI – vodovod", "profesie"),
+        ("723", "ZTI – plynovod", "profesie"),
+        ("725", "ZTI – zariaďovacie predmety", "profesie"),
+        ("731", "ÚK – kotolne", "profesie"),
+        ("732", "ÚK – strojovne", "profesie"),
+        ("733", "ÚK – rozvod potrubia", "profesie"),
+        ("734", "ÚK – armatúry", "profesie"),
+        ("735", "ÚK – vykurovacie telesá", "profesie"),
+        ("762", "Konštrukcie tesárske", "ASR-PSV"),
+        ("763", "Suchá výstavba (SDK)", "ASR-PSV"),
+        ("764", "Klampiarske konštrukcie", "ASR-PSV"),
+        ("765", "Krytiny tvrdé", "ASR-PSV"),
+        ("766", "Stolárske konštrukcie", "ASR-PSV"),
+        ("767", "Zámočnícke konštrukcie", "ASR-PSV"),
+        ("771", "Podlahy z dlaždíc", "ASR-PSV"),
+        ("775", "Podlahy vlysové a parketové", "ASR-PSV"),
+        ("776", "Podlahy povlakové", "ASR-PSV"),
+        ("781", "Obklady", "ASR-PSV"),
+        ("783", "Nátery", "ASR-PSV"),
+        ("784", "Maľby", "ASR-PSV"),
+        ("210", "Elektromontáže (M21)", "profesie"),
+        ("220", "Montáže oznamovacích zariadení (M22)", "profesie"),
+        ("240", "Vzduchotechnika (M24)", "profesie"),
+    ])
+
     # --- fulltext ---
     con.executescript("""
         DROP TABLE IF EXISTS cennik_fts;
