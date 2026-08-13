@@ -9,8 +9,8 @@ grep -h '^=== \[' data/02_shard*.log 2>/dev/null \
   | grep -oE '\[[0-9]+\]' | tr -d '[]' >> data/hotovo.txt || true
 
 echo "[$(date +%H:%M)] krok 2: 4 paralelné vlákna (rýchle discovery)"
-for i in 0 1 2 3; do
-  python3 02_dokumenty.py --limit-zakaziek 999999 --shard $i/4 \
+for i in 0 1 2 3 4 5; do
+  python3 02_dokumenty.py --limit-zakaziek 999999 --shard $i/6 \
     > data/02_shard$i.log 2>&1 &
 done
 wait
