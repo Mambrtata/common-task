@@ -31,7 +31,8 @@ Claude-Session: https://claude.ai/code/session_01KqjaLR9knmcRcHFzmDDq1V" \
         >> data/02_shard$i.log 2>&1 &
     done
   fi
-  # údržba disku
-  python3 07_prune.py >> data/prune.log 2>&1
-  sleep 1800
+  # údržba disku len raz za ~30 min (15 cyklov po 2 min)
+  cyklus=$(( (${cyklus:-0} + 1) % 15 ))
+  [ "$cyklus" -eq 0 ] && python3 07_prune.py >> data/prune.log 2>&1
+  sleep 120
 done
