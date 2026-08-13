@@ -103,6 +103,24 @@ def main():
         [(z["id"], z["nazov"], z["obstaravatel"], z["cpv"],
           z["cpv_popis"], z["kraj"], z["aktualizacia"]) for z in zak])
 
+    # --- CRZ zmluvy (metadáta: dátum, strany, suma) ---
+    crz_csv = DATA / "crz_zmluvy.csv"
+    if crz_csv.exists():
+        con.execute("""CREATE TABLE IF NOT EXISTS crz_zmluvy (
+            zmluva_id TEXT PRIMARY KEY, datum_davky TEXT, predmet TEXT,
+            objednavatel TEXT, dodavatel TEXT, suma REAL)""")
+        con.execute("DELETE FROM crz_zmluvy")
+        with crz_csv.open(encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                con.execute("INSERT OR IGNORE INTO crz_zmluvy VALUES "
+                            "(?,?,?,?,?,?)",
+                            (r["zmluva_id"], r["datum_davky"], r["predmet"],
+                             r["objednavatel"], r["dodavatel"],
+                             na_float(r["suma"])))
+        n_crz = con.execute("SELECT count(*) FROM crz_zmluvy").fetchone()[0]
+        print(f"crz_zmluvy: {n_crz} zmlúv "
+              f"(join: cenove_body.zakazka_id = 'crz_'||zmluva_id)")
+
     # --- cenové body ---
     con.execute("DELETE FROM cenove_body")
     riadky, subory, s_cenou = [], 0, 0
