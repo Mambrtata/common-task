@@ -4,6 +4,10 @@
 set -u
 cd "$(dirname "$0")"
 
+# pred prepísaním logov zachovaj IDs už spracovaných zákaziek
+grep -h '^=== \[' data/02_shard*.log 2>/dev/null \
+  | grep -oE '\[[0-9]+\]' | tr -d '[]' >> data/hotovo.txt || true
+
 echo "[$(date +%H:%M)] krok 2: 4 paralelné vlákna (rýchle discovery)"
 for i in 0 1 2 3; do
   python3 02_dokumenty.py --limit-zakaziek 999999 --shard $i/4 \

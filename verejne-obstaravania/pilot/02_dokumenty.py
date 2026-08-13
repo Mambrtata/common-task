@@ -88,6 +88,15 @@ def main():
         zakazky = [z for j, z in enumerate(zakazky) if j % n == i]
         sufix = f"_shard{i}"
 
+    # trvalá evidencia spracovaných zákaziek – reštart preskočí hotové okamžite
+    hotovo_subor = DATA / "hotovo.txt"
+    hotovo = set(hotovo_subor.read_text().split()) if hotovo_subor.exists() else set()
+    if hotovo:
+        pred = len(zakazky)
+        zakazky = [z for z in zakazky if z["id"] not in hotovo]
+        print(f"preskakujem {pred - len(zakazky)} už hotových zákaziek")
+    hotovo_f = hotovo_subor.open("a")
+
     # CSV zapisuj priebežne, nech sa pri prerušení behu nič nestratí
     out = DATA / f"dokumenty{sufix}.csv"
     out_f = out.open("w", newline="", encoding="utf-8")
@@ -157,7 +166,11 @@ def main():
                 out_f.flush()
                 pocet += 1
 
+        hotovo_f.write(z["id"] + "\n")
+        hotovo_f.flush()
+
     out_f.close()
+    hotovo_f.close()
     print(f"\nSpolu {pocet} súborov -> {out}")
 
 
