@@ -107,11 +107,11 @@ def extrahuj_polozky_pdf(cesta: pathlib.Path):
     except Exception:
         return polozky, ma_text
     try:
-        for page in pdf:
+        for i in range(len(pdf)):
             try:
-                text = page.get_textpage().get_text_range()
+                text = pdf[i].get_textpage().get_text_range()
             except Exception:
-                continue
+                continue    # poškodená stránka/PDF – preskoč
             if len(text) > 100:
                 ma_text = True
             for m in RE_PDF_POLOZKA.finditer(text.replace("\r", "\n")):
