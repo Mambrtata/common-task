@@ -73,7 +73,8 @@ CREATE TABLE IF NOT EXISTS zakazky (
 CREATE TABLE IF NOT EXISTS cenove_body (
     zakazka_id TEXT, subor TEXT, harok TEXT,
     kod TEXT, popis TEXT, mj TEXT,
-    mnozstvo REAL, jedn_cena REAL, zdroj TEXT);
+    mnozstvo REAL, jedn_cena REAL, zdroj TEXT,
+    zdroj_url TEXT);
 CREATE INDEX IF NOT EXISTS idx_cb_kod ON cenove_body(kod);
 """
 
@@ -144,9 +145,15 @@ def main():
                 if cena is not None:
                     s_cenou += 1
                 kod, popis = normalizuj_polozku(p["kod"], p["popis"])
+                # dohľadateľný pôvod ceny – odkaz na verejný zdroj
+                if prefix:
+                    url = f"https://www.crz.gov.sk/zmluva/{zdir.name}/"
+                else:
+                    url = ("https://www.uvo.gov.sk/vyhladavanie/"
+                           f"vyhladavanie-zakaziek/detail/{zdir.name}")
                 riadky.append((prefix + zdir.name, meno, p["harok"], kod,
-                               popis, p["mj"], mn, cena, zdroj))
-    con.executemany("INSERT INTO cenove_body VALUES (?,?,?,?,?,?,?,?,?)",
+                               popis, p["mj"], mn, cena, zdroj, url))
+    con.executemany("INSERT INTO cenove_body VALUES (?,?,?,?,?,?,?,?,?,?)",
                     riadky)
     print(f"cenove_body: {len(riadky)} položiek "
           f"({s_cenou} s jedn. cenou) z {subory} súborov")
