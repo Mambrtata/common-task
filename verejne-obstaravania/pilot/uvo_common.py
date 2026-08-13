@@ -12,7 +12,7 @@ import urllib.request
 
 BASE = "https://www.uvo.gov.sk"
 USER_AGENT = "cenova-db-pilot/0.1 (interny pilot; kontakt: jan.kovalcik@gmail.com)"
-PAUZA_S = 0.8          # pauza medzi requestami
+PAUZA_S = 0.5          # pauza medzi requestami
 TIMEOUT_S = 60
 RETRY = 3
 
