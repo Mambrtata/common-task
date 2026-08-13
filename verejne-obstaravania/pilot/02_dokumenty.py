@@ -17,7 +17,7 @@ import sys
 import unicodedata
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from uvo_common import dokumenty_ids_pre_zakazku, dokument_detail, fetch
+from uvo_common import dokumenty_zakazky, dokument_detail, fetch
 
 HERE = pathlib.Path(__file__).parent
 DATA = HERE / "data"
@@ -99,7 +99,7 @@ def main():
     for z in zakazky:
         print(f"\n=== [{z['id']}] {z['nazov'][:70]}")
         try:
-            dokumenty = dokumenty_ids_pre_zakazku(z["nazov"])
+            dokumenty = dokumenty_zakazky(z["id"])
         except RuntimeError as e:
             print(f"  ! vyhľadávanie zlyhalo: {e}")
             continue
@@ -116,9 +116,6 @@ def main():
                 d = dokument_detail(did)
             except RuntimeError as e:
                 print(f"  ! detail {did} zlyhal: {e}")
-                continue
-            # substring match môže chytiť inú zákazku – over zhodu názvu
-            if normalizuj(z["nazov"]) not in normalizuj(d["zakazka"]):
                 continue
             typ = d["typ_dokumentu"].lower()
             je_ponuka = any(t in typ for t in TYPY_PONUKY)

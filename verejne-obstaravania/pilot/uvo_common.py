@@ -83,6 +83,38 @@ def zakazky_page(cpv: str, page_no: int):
 
 # -------------------------------------------------------------- dokumenty ---
 
+def dokumenty_zakazky(zakazka_id: str):
+    """Dokumenty zákazky cez tab „Dokumenty" na detaile zákazky.
+
+    Rýchle (2 requesty) na rozdiel od fulltextového vyhľadávania podľa
+    názvu, ktoré má za záťaže ~25 s. Vráti list dvojíc (doc_id, typ).
+    """
+    detail = fetch(f"{BASE}/vyhladavanie/vyhladavanie-zakaziek/detail/{zakazka_id}")
+    m = re.search(r'href="(/vyhladavanie/vyhladavanie-zakaziek/dokumenty/'
+                  + re.escape(zakazka_id) + r'\?cHash=[0-9a-f]+)"', detail)
+    if not m:
+        return []
+    base_url = BASE + html.unescape(m.group(1))
+    vysledky, videne = [], set()
+    for page_no in range(1, 11):
+        url = base_url if page_no == 1 else f"{base_url}&page={page_no}"
+        page = fetch(url)
+        nove = False
+        for chunk in re.split(r"<tr", page):
+            mm = re.search(r"vyhladavanie-dokumentov/detail/(\d+)", chunk)
+            if not mm or mm.group(1) in videne:
+                continue
+            videne.add(mm.group(1))
+            nove = True
+            bunky = [clean(td) for td in
+                     re.findall(r"<td[^>]*>(.*?)</td>", chunk, re.S)]
+            typ = bunky[0] if bunky else ""
+            vysledky.append((mm.group(1), typ))
+        if not nove or len(videne) < 20 * page_no:
+            break
+    return vysledky
+
+
 def dokumenty_ids_pre_zakazku(nazov_zakazky: str, max_stran: int = 5):
     """Vyhľadaj dokumenty podľa názvu zákazky (substring match na ÚVO).
 
