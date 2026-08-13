@@ -106,9 +106,10 @@ def main():
     # --- cenové body ---
     con.execute("DELETE FROM cenove_body")
     riadky, subory, s_cenou = [], 0, 0
-    for zdir in sorted((DATA / "subory").iterdir()):
-        if not zdir.is_dir():
-            continue
+    zdroje = [(DATA / "subory", ""), (DATA / "subory_crz", "crz_")]
+    adresare = [(d, pref) for base, pref in zdroje if base.exists()
+                for d in sorted(base.iterdir()) if d.is_dir()]
+    for zdir, prefix in adresare:
         for f in zdir.rglob("*"):
             if not f.is_file():
                 continue
@@ -125,7 +126,7 @@ def main():
                 if cena is not None:
                     s_cenou += 1
                 kod, popis = normalizuj_polozku(p["kod"], p["popis"])
-                riadky.append((zdir.name, meno, p["harok"], kod,
+                riadky.append((prefix + zdir.name, meno, p["harok"], kod,
                                popis, p["mj"], mn, cena, zdroj))
     con.executemany("INSERT INTO cenove_body VALUES (?,?,?,?,?,?,?,?,?)",
                     riadky)
