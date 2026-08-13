@@ -95,3 +95,20 @@ Backfill možný po dňoch dozadu. Plán `05_crz.py`: denné dávky -> filter
 stavebných zmlúv -> stiahnuť prílohy s rozpočtom -> extrakcia (PDF, často
 skeny -> spolu s OCR fázou). Pridá zákazky s nízkou hodnotou, históriu
 pred 2022 a dodatky; len víťazné ceny.
+
+## Lokálny beh (odporúčané pre veľký zber)
+
+Cloudový kontajner sa pri nečinnosti uspáva a procesy hynú; lokálne to beží
+bez dozoru. Skripty sú čistý Python, fungujú na Windows aj Linuxe.
+
+```bash
+git clone <repo> && cd verejne-obstaravania/pilot
+pip install openpyxl pypdfium2
+python run_local.py                # zber celého registra + build ceny.db
+python run_local.py --vlakna 4     # šetrnejšie k sieti
+python run_local.py --len-db       # len prebuduj databázu z už stiahnutých dát
+```
+
+`run_local.py` reštartuje padnuté vlákna sám, priebežne prerieďuje ZIPy
+a dá sa kedykoľvek prerušiť (Ctrl+C) – pokračuje cez `data/hotovo.txt`.
+Očakávaj 12–24 h a ~15 GB na disku (po prerieďovaní).
