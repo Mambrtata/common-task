@@ -85,3 +85,13 @@ WHERE cennik_fts MATCH 'beton zaklad*' ORDER BY c.n DESC;
 otvorov ...-0,80*2,05*2). Do ďalšej verzie ceny.db pridať tabuľku `figury`
 (kod -> text -> hodnota) previazanú na cenove_body – učebný materiál pre
 tvorbu výkazov (ako sa výmera počíta z rozmerov konštrukcie).
+
+## Sonda: nočné dávky CRZ (12. 8. 2026)
+
+Overené: `crz.gov.sk/export/RRRR-MM-DD.zip` -> denný XML (~250 kB, ~2 000
+zmlúv/deň, z toho ~130 stavebných, ~4+ s explicitne pomenovaným rozpočtom
+v prílohe; ďalšie v generických prílohách). Prílohy: `crz.gov.sk/data/att/...`.
+Backfill možný po dňoch dozadu. Plán `05_crz.py`: denné dávky -> filter
+stavebných zmlúv -> stiahnuť prílohy s rozpočtom -> extrakcia (PDF, často
+skeny -> spolu s OCR fázou). Pridá zákazky s nízkou hodnotou, históriu
+pred 2022 a dodatky; len víťazné ceny.
