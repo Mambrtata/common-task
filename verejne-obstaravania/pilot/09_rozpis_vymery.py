@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
-"""Krok 9: vytiahni figúry (rozpisy výmer) z výkazov do tabuľky `figury`.
+"""Krok 9: vytiahni rozpis výmery z výkazov do tabuľky `rozpis_vymery`.
 
 Použitie:
-    python3 09_figury.py [--db ceny_spolu.db]
+    python3 09_rozpis_vymery.py [--db ceny_spolu.db]
 
-Figúry sú výrazy výpočtu výmery zapísané pri položke, napr.
+POZOR na terminológiu: skutočné *figúry* sú v KROS-e pomenované
+premenné (Názov / Popis / Aritmetický výraz / Hodnota) a do exportu sa
+dostanú len keď obstarávateľ zaškrtne „s figúrami" – vo zverejnených
+výkazoch preto prakticky nikdy nie sú (hárok „Figury" býva prázdny).
+
+Tento skript číta *rozpis výmery* – riadky pod položkou, kde je výmera
+rozpísaná na rozmery, napr.
     2,6*2,5*1,4
     "objem, výkopy pre základové pätky" 0,5*0,6*0,8*2
     "2.NP" 19+18
     2.621*2.30+3.00*2.445-0.80*2.05*2      (s odpočtom otvorov)
 
-Vyhradený hárok „Figury" býva v zverejnených exportoch prázdny, preto
-čítame výrazy priamo z riadkov pod položkami. Každá figúra sa viaže na
-naposledy videný TSKP kód.
+Každý rozpis sa viaže na naposledy videný TSKP kód.
 
-Výsledok: tabuľka figury(kod, popis_polozky, mj, popis_figury, vyraz,
-hodnota, zdroj_subor) – učebný materiál, ako sa výmera počíta z rozmerov.
+Výsledok: tabuľka rozpis_vymery(kod, popis_polozky, mj, popis_riadku,
+vyraz, hodnota, zdroj_subor) – ukazuje, ako sa výmera odvodzuje
+z rozmerov konštrukcie.
 """
 
 import argparse
@@ -79,12 +84,12 @@ def rozdel(text: str):
 
 
 def spracuj_zosit(data: bytes, meno: str):
-    figury = []
+    rozpisy = []
     try:
         wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True,
                                     data_only=True)
     except Exception:
-        return figury
+        return rozpisy
     for ws in wb.worksheets:
         if "figur" in ws.title.lower():
             continue                      # vyhradený hárok býva prázdny
@@ -104,7 +109,7 @@ def spracuj_zosit(data: bytes, meno: str):
                 mj = next((str(c).strip().lower() for c in hodnoty
                            if str(c).strip().lower() in MJ_ZNAME), "")
                 continue
-            # riadok s figúrou (patrí k poslednej položke)
+            # riadok s rozpisom výmery (patrí k poslednej položke)
             if not kod:
                 continue
             for c in hodnoty:
@@ -113,11 +118,11 @@ def spracuj_zosit(data: bytes, meno: str):
                 r = rozdel(c)
                 if not r:
                     continue
-                popis_fig, vyraz = r
-                figury.append((kod, popis_pol or "", mj or "", popis_fig,
+                popis_riadku, vyraz = r
+                rozpisy.append((kod, popis_pol or "", mj or "", popis_riadku,
                                vyraz, vyhodnot(vyraz), meno))
     wb.close()
-    return figury
+    return rozpisy
 
 
 def zosity(f: pathlib.Path):
@@ -143,11 +148,11 @@ def main():
 
     con = sqlite3.connect(args.db)
     con.executescript("""
-        DROP TABLE IF EXISTS figury;
-        CREATE TABLE figury (
+        DROP TABLE IF EXISTS rozpis_vymery;
+        CREATE TABLE rozpis_vymery (
             kod TEXT, popis_polozky TEXT, mj TEXT,
-            popis_figury TEXT, vyraz TEXT, hodnota REAL, zdroj_subor TEXT);
-        CREATE INDEX idx_fig_kod ON figury(kod);
+            popis_riadku TEXT, vyraz TEXT, hodnota REAL, zdroj_subor TEXT);
+        CREATE INDEX idx_rv_kod ON rozpis_vymery(kod);
     """)
 
     spolu, suborov = 0, 0
@@ -158,18 +163,18 @@ def main():
             if not f.is_file():
                 continue
             for meno, data in zosity(f):
-                fig = spracuj_zosit(data, meno)
-                if fig:
+                rv = spracuj_zosit(data, meno)
+                if rv:
                     con.executemany(
-                        "INSERT INTO figury VALUES (?,?,?,?,?,?,?)", fig)
-                    spolu += len(fig)
+                        "INSERT INTO rozpis_vymery VALUES (?,?,?,?,?,?,?)", rv)
+                    spolu += len(rv)
                     suborov += 1
                     if suborov % 50 == 0:
                         con.commit()
-                        print(f"  {suborov} súborov, {spolu} figúr",
+                        print(f"  {suborov} súborov, {spolu} rozpisov",
                               flush=True)
     con.commit()
-    print(f"\nfigury: {spolu} záznamov z {suborov} súborov -> {args.db}")
+    print(f"\nrozpis_vymery: {spolu} záznamov z {suborov} súborov -> {args.db}")
     con.close()
 
 
