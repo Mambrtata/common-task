@@ -31,11 +31,13 @@ def spusti(skript, *argy):
 
 
 def pocet_zakaziek():
-    csv = DATA / "zakazky.csv"
-    if not csv.exists():
+    """Počet UNIKÁTNYCH zákaziek (jedna zákazka býva pod viacerými CPV)."""
+    subor = DATA / "zakazky.csv"
+    if not subor.exists():
         return 0
-    with csv.open(encoding="utf-8") as f:
-        return sum(1 for _ in f) - 1
+    import csv as _csv
+    with subor.open(encoding="utf-8") as f:
+        return len({r["id"] for r in _csv.DictReader(f)})
 
 
 def pocet_hotovych():
@@ -61,7 +63,7 @@ def main():
         print(f"krok 2: {celkom} zákaziek, {args.vlakna} vlákien", flush=True)
 
         procesy = {}
-        cyklus = 0
+        cyklus, bez_pokroku, posledny = 0, 0, pocet_hotovych()
         while pocet_hotovych() < celkom:
             for i in range(args.vlakna):
                 p = procesy.get(i)
@@ -73,9 +75,20 @@ def main():
                         print(f"  vlákno {i} spadlo – reštart", flush=True)
             time.sleep(60)
             cyklus += 1
+
+            # ochrana proti nekonečnej slučke: keď 5 minút nepribudne nič,
+            # zvyšné zákazky sú nedostupné (chyby pri sťahovaní) – končíme
+            teraz = pocet_hotovych()
+            bez_pokroku = 0 if teraz > posledny else bez_pokroku + 1
+            posledny = teraz
+            if bez_pokroku >= 5:
+                print(f"  žiadny pokrok, končím na {teraz}/{celkom} "
+                      f"(zvyšok sa nepodarilo stiahnuť)", flush=True)
+                break
+
             if cyklus % 30 == 0:          # ~raz za 30 min
                 subprocess.run([PY, str(HERE / "07_prune.py")], cwd=str(HERE))
-                print(f"  {pocet_hotovych()}/{celkom} zákaziek", flush=True)
+                print(f"  {teraz}/{celkom} zákaziek", flush=True)
 
         for p in procesy.values():
             if p.poll() is None:
