@@ -2,12 +2,12 @@
 """Lokálny spúšťač zberu cien projektových služieb (CPV 71xx).
 
 Použitie:
-    python run_local_pd.py                # zber cien pre všetky zákazky
-    python run_local_pd.py --vlakna 4     # počet paralelných vlákien
+    python run_local_pd.py               # zber cien
+    python run_local_pd.py --vlakna 4    # počet paralelných vlákien
+    python run_local_pd.py --stav        # len vypíš, koľko zostáva
 
-Potrebné: Python 3.9+, `pip install pypdfium2`
-V priečinku data/ musí byť pd_zakazky.csv (zoznam zákaziek).
-Beh sa dá kedykoľvek prerušiť (Ctrl+C) – pokračuje cez data/pd_hotovo.txt.
+Potrebné: `pip install pypdfium2`; v data/ musí byť pd_zakazky.csv.
+Prerušenie (Ctrl+C) nevadí – pokračuje cez data/pd_hotovo.txt.
 Výsledok: data/pd_ceny_shard*.csv
 """
 
@@ -23,67 +23,69 @@ DATA = HERE / "data"
 PY = sys.executable
 
 
-def pocet_zakaziek():
+def riadky_zoznamu():
     f = DATA / "pd_zakazky.csv"
     if not f.exists():
-        return 0
+        raise SystemExit("chýba data/pd_zakazky.csv")
     with f.open(encoding="utf-8") as fh:
-        return len({r["id"] for r in csv.DictReader(fh)})
+        return [r["id"] for r in csv.DictReader(fh)]
 
 
-def pocet_hotovych():
+def hotove_ids():
     f = DATA / "pd_hotovo.txt"
     if not f.exists():
-        return 0
-    return len({r.strip() for r in f.read_text().split() if r.strip()})
+        return set()
+    return {r.strip() for r in f.read_text().split() if r.strip()}
+
+
+def zostava_pre_vlakno(i, n, ids, hotove):
+    """Koľko zákaziek ešte čaká na vlákno i (rovnaké delenie ako v zbere)."""
+    return sum(1 for j, zid in enumerate(ids)
+               if j % n == i and zid not in hotove)
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--vlakna", type=int, default=4)
+    ap.add_argument("--stav", action="store_true")
     args = ap.parse_args()
 
-    celkom = pocet_zakaziek()
-    if celkom == 0:
-        raise SystemExit("chýba data/pd_zakazky.csv – najprv "
-                         "`python 10_pd_sluzby.py --zoznam`")
-    print(f"zákaziek: {celkom}, vlákien: {args.vlakna}", flush=True)
+    ids = riadky_zoznamu()
+    hotove = hotove_ids()
+    zostava = sum(1 for zid in set(ids) if zid not in hotove)
+    print(f"zákaziek v zozname: {len(set(ids))} | hotových: "
+          f"{len(set(ids)) - zostava} | zostáva: {zostava}", flush=True)
+    if args.stav or zostava == 0:
+        if zostava == 0:
+            print("zber je kompletný – niet čo sťahovať", flush=True)
+        return
 
-    def spusti(i):
-        return subprocess.Popen(
-            [PY, str(HERE / "10_pd_sluzby.py"),
-             "--shard", f"{i}/{args.vlakna}"], cwd=str(HERE))
-
-    # Vlákno, ktoré nemá čo robiť, skončí do pár sekúnd. Dvakrát po sebe
-    # rýchly koniec = jeho časť je hotová (nie pád) -> nereštartuj ho.
-    procesy, hotove, rychle = {}, set(), {}
-    while len(hotove) < args.vlakna:
+    procesy = {}
+    while True:
+        hotove = hotove_ids()
+        aktivne = 0
         for i in range(args.vlakna):
-            if i in hotove:
-                continue
-            zaznam = procesy.get(i)
-            if zaznam is None:
-                procesy[i] = (spusti(i), time.time())
-                continue
-            p, start = zaznam
-            if p.poll() is None:
-                continue                      # beží ďalej
-            if time.time() - start < 45:      # skončil hneď
-                rychle[i] = rychle.get(i, 0) + 1
-                if rychle[i] >= 2:
-                    hotove.add(i)
-                    print(f"  vlákno {i} hotové", flush=True)
-                    continue
-            else:
-                rychle[i] = 0
-                print(f"  vlákno {i} spadlo – reštart", flush=True)
-            procesy[i] = (spusti(i), time.time())
+            if zostava_pre_vlakno(i, args.vlakna, ids, hotove) == 0:
+                continue                       # táto časť je hotová
+            aktivne += 1
+            p = procesy.get(i)
+            if p is None or p.poll() is not None:
+                if p is not None:
+                    print(f"  vlákno {i} skončilo predčasne – reštart",
+                          flush=True)
+                procesy[i] = subprocess.Popen(
+                    [PY, str(HERE / "10_pd_sluzby.py"),
+                     "--shard", f"{i}/{args.vlakna}"], cwd=str(HERE))
+        if aktivne == 0:
+            break
         time.sleep(60)
-        print(f"  {pocet_hotovych()}/{celkom} zákaziek", flush=True)
+        hot = len(set(ids)) - sum(1 for zid in set(ids)
+                                  if zid not in hotove_ids())
+        print(f"  {hot}/{len(set(ids))} zákaziek", flush=True)
 
-    for zaznam in procesy.values():
-        if zaznam[0].poll() is None:
-            zaznam[0].terminate()
+    for p in procesy.values():
+        if p.poll() is None:
+            p.terminate()
     print("hotovo – výsledky v data/pd_ceny_shard*.csv", flush=True)
 
 
