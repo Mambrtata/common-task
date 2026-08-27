@@ -66,8 +66,9 @@ def zakazky_page(cpv: str, page_no: int, druh: str = "PRACE"):
         m = re.search(r"vyhladavanie-zakaziek/detail/(\d+)", tr)
         if not m:
             continue
+        # pozor: bunky sa NESMÚ filtrovať na neprázdne – prázdny kraj by
+        # posunul mapovanie stĺpcov (dátum by skončil v poli kraj)
         bunky = [clean(td) for td in re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)]
-        bunky = [b for b in bunky if b and b not in ("EVO",)]
         zaznam = {
             "id": m.group(1),
             "nazov": bunky[0] if len(bunky) > 0 else "",
