@@ -37,6 +37,8 @@ databáza slúži na:
 | `crz_zmluvy(zmluva_id, datum_davky, predmet, objednavatel, dodavatel, suma)` | metadáta zmlúv z CRZ – **dáva cenám dátum** |
 | `diely(prefix, nazov, kategoria)` | číselník dielov TSKP: `ASR-HSV`, `ASR-PSV`, `profesie` |
 | `rozpis_vymery(kod, popis_polozky, mj, popis_riadku, vyraz, hodnota, zdroj_subor)` | ako sa výmera odvodzuje z rozmerov (`0,40*0,40*3,35*24`) |
+| `pd_zakazky(zakazka_id, nazov, obstaravatel, cpv, kraj, datum, phz, konecna, pomer, pocet_ponuk, zdroj_url)` | ceny **projektových služieb** (CPV 71xx): predpokladaná hodnota, konečná cena a ich pomer |
+| `pd_ceny(...)` | surové cenové záznamy k PD zákazkám (phz / konecna / ponuka) |
 
 Prepojenia:
 - ÚVO: `cenove_body.zakazka_id = zakazky.id`
@@ -60,6 +62,12 @@ WHERE d.kategoria LIKE 'ASR%' AND c.n >= 5;
 SELECT b.kod, b.popis, b.jedn_cena, z.datum_davky, b.zdroj_url
 FROM cenove_body b JOIN crz_zmluvy z ON b.zakazka_id='crz_'||z.zmluva_id
 WHERE b.kod='275313611' AND z.datum_davky > '2025-08-01';
+
+-- koľko si pýtať za projektovú dokumentáciu podobnej veľkosti
+SELECT round(phz), round(konecna), pomer, pocet_ponuk, nazov, zdroj_url
+FROM pd_zakazky WHERE phz BETWEEN 80000 AND 200000 AND pomer IS NOT NULL
+ORDER BY pomer;
+-- typický pomer: medián 0,94 (víťaz ~6 % pod PHZ), p25 0,81, p75 1,00
 
 -- ako sa počíta výmera tejto položky
 SELECT popis_riadku, vyraz, hodnota FROM rozpis_vymery WHERE kod='331321610';
@@ -112,6 +120,9 @@ python 08_zluc.py --do ceny_spolu.db ceny-cloud.db data/ceny.db
 | `07_prune.py` | prerieďovanie ZIPov (šetrí disk) |
 | `08_zluc.py` | zlúči viac `ceny.db` do jednej |
 | `09_rozpis_vymery.py` | rozpisy výmer |
+| `10_pd_sluzby.py` | ceny projektových služieb (CPV 71xx) |
+| `11_pd_prehlad.py` | vyhodnotenie cien PD (pomer konečná/PHZ) |
+| `12_pd_do_db.py` | nahrá ceny PD do databázy |
 | `run_local.py` | spúšťač celého zberu s auto-reštartom vlákien |
 
 `data/` sa neverzuje (surové PDF/xlsx sú medziprodukt, dajú sa stiahnuť znova).
