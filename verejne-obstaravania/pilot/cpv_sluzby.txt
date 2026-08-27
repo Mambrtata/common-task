@@ -1,0 +1,9 @@
+# CPV kódy – projektové a inžinierske služby (zber pre nastavenie cenových ponúk)
+71300000  # inžinierske služby (široký kód)
+71320000  # inžinierske projektovanie
+71240000  # architektonické, inžinierske a plánovacie služby
+71250000  # architektonické, inžinierske a zememeračské služby
+71351000  # geologické, geofyzikálne a iné prieskumné služby
+71322000  # inžinierske projektovanie stavebných prác
+71220000  # architektonické navrhovanie
+71221000  # architektonické služby pre budovy
