@@ -49,30 +49,41 @@ def main():
                          "`python 10_pd_sluzby.py --zoznam`")
     print(f"zákaziek: {celkom}, vlákien: {args.vlakna}", flush=True)
 
-    procesy = {}
-    bez_pokroku, posledny = 0, pocet_hotovych()
-    while pocet_hotovych() < celkom:
+    def spusti(i):
+        return subprocess.Popen(
+            [PY, str(HERE / "10_pd_sluzby.py"),
+             "--shard", f"{i}/{args.vlakna}"], cwd=str(HERE))
+
+    # Vlákno, ktoré nemá čo robiť, skončí do pár sekúnd. Dvakrát po sebe
+    # rýchly koniec = jeho časť je hotová (nie pád) -> nereštartuj ho.
+    procesy, hotove, rychle = {}, set(), {}
+    while len(hotove) < args.vlakna:
         for i in range(args.vlakna):
-            p = procesy.get(i)
-            if p is None or p.poll() is not None:
-                procesy[i] = subprocess.Popen(
-                    [PY, str(HERE / "10_pd_sluzby.py"),
-                     "--shard", f"{i}/{args.vlakna}"], cwd=str(HERE))
-                if p is not None:
-                    print(f"  vlákno {i} spadlo – reštart", flush=True)
+            if i in hotove:
+                continue
+            zaznam = procesy.get(i)
+            if zaznam is None:
+                procesy[i] = (spusti(i), time.time())
+                continue
+            p, start = zaznam
+            if p.poll() is None:
+                continue                      # beží ďalej
+            if time.time() - start < 45:      # skončil hneď
+                rychle[i] = rychle.get(i, 0) + 1
+                if rychle[i] >= 2:
+                    hotove.add(i)
+                    print(f"  vlákno {i} hotové", flush=True)
+                    continue
+            else:
+                rychle[i] = 0
+                print(f"  vlákno {i} spadlo – reštart", flush=True)
+            procesy[i] = (spusti(i), time.time())
         time.sleep(60)
+        print(f"  {pocet_hotovych()}/{celkom} zákaziek", flush=True)
 
-        teraz = pocet_hotovych()
-        bez_pokroku = 0 if teraz > posledny else bez_pokroku + 1
-        posledny = teraz
-        print(f"  {teraz}/{celkom} zákaziek", flush=True)
-        if bez_pokroku >= 5:
-            print(f"  žiadny pokrok, končím na {teraz}/{celkom}", flush=True)
-            break
-
-    for p in procesy.values():
-        if p.poll() is None:
-            p.terminate()
+    for zaznam in procesy.values():
+        if zaznam[0].poll() is None:
+            zaznam[0].terminate()
     print("hotovo – výsledky v data/pd_ceny_shard*.csv", flush=True)
 
 
