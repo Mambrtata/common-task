@@ -34,8 +34,10 @@ except ImportError:
 HERE = pathlib.Path(__file__).parent
 DATA = HERE / "data"
 
-TYPY = ("správa o zákazke", "zápisnica o vyhodnotení",
-        "ponuky uchádzačov", "informácia o výsledku")
+# Priorita: správa o zákazke má PHZ + konečnú cenu + víťaza v jednom malom
+# PDF. Ostatné sa berú, len keď správa chýba alebo z nej nič nevypadlo.
+TYPY_PRIORITA = ("správa o zákazke", "informácia o výsledku",
+                 "zápisnica o vyhodnotení", "ponuky uchádzačov")
 
 # čísla v slovenskom aj medzinárodnom formáte: 139 860,00 | 12.999,00 | 12999.00
 CISLO = r"(\d{1,3}(?:[\s .]\d{3})*(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)"
@@ -110,15 +112,25 @@ def ceny_z_textu(t: str):
     return najdene
 
 
-def spracuj_zakazku(z, writer, max_mb=12.0):
+def spracuj_zakazku(z, writer, max_mb=5.0, max_dokumentov=2):
+    """Vyťaží ceny zo zákazky. Berie dokumenty podľa priority a končí,
+    len čo z niektorého vypadli ceny – šetrí requesty aj čas."""
     riadky = 0
     try:
         dokumenty = dokumenty_zakazky(z["id"])
     except RuntimeError:
         return 0
-    for did, typ in dokumenty:
-        if not any(t in typ.lower() for t in TYPY):
-            continue
+
+    def poradie(dt):
+        for i, typ in enumerate(TYPY_PRIORITA):
+            if typ in dt.lower():
+                return i
+        return 99
+
+    kandidati = sorted(((did, dt) for did, dt in dokumenty
+                        if poradie(dt) < 99), key=lambda x: poradie(x[1]))
+
+    for did, typ in kandidati[:max_dokumentov]:
         try:
             d = dokument_detail(did)
         except RuntimeError:
@@ -148,6 +160,8 @@ def spracuj_zakazku(z, writer, max_mb=12.0):
                     "zdroj_url": f"{BASE}/vyhladavanie/vyhladavanie-zakaziek"
                                  f"/detail/{z['id']}"})
                 riadky += 1
+        if riadky:            # máme ceny, ďalšie dokumenty netreba
+            break
     return riadky
 
 
