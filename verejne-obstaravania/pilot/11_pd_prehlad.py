@@ -101,6 +101,34 @@ def main():
             if v:
                 print(f"  {popis:14} n={len(v):4} medián {statistics.median(v):>10,.0f} €")
 
+    # pomer podľa veľkosti zákazky – malé PD sa súťažia inak než veľké
+    if obe:
+        print("\npomer konečná/PHZ podľa veľkosti (podľa PHZ):")
+        pasma = ((0, 20000, "do 20 tis."), (20000, 50000, "20–50 tis."),
+                 (50000, 150000, "50–150 tis."), (150000, 10**9, "nad 150 tis."))
+        for lo, hi, popis in pasma:
+            v = sorted(x["konecna"] / x["phz"] for x in obe.values()
+                       if lo <= x["phz"] < hi and 0.1 < x["konecna"] / x["phz"] < 3)
+            if len(v) >= 3:
+                print(f"  {popis:14} n={len(v):3}  medián {statistics.median(v):.2f}"
+                      f"  p25 {v[len(v)//4]:.2f}  p75 {v[3*len(v)//4]:.2f}")
+            elif v:
+                print(f"  {popis:14} n={len(v):3}  (málo dát)")
+
+    # vývoj v čase
+    if obe:
+        roky = {}
+        for x in obe.values():
+            r = (x.get("datum") or "")[-4:]
+            if r.isdigit() and 0.1 < x["konecna"] / x["phz"] < 3:
+                roky.setdefault(r, []).append(x["konecna"] / x["phz"])
+        if len(roky) > 1:
+            print("\npomer konečná/PHZ podľa roku:")
+            for r in sorted(roky):
+                if len(roky[r]) >= 3:
+                    print(f"  {r}  n={len(roky[r]):3}  medián "
+                          f"{statistics.median(roky[r]):.2f}")
+
     if args.csv:
         with open(args.csv, "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
