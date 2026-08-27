@@ -97,9 +97,15 @@ def ceny_z_textu(t: str):
     for rex, druh in ((RE_PHZ, "phz"), (RE_KONECNA, "konecna")):
         for m in rex.finditer(t):
             c = na_float(m.group(1))
-            if c and c >= 100:
-                okolie = t[m.start():m.end() + 30]
-                najdene.append((druh, c, dph_priznak(okolie)))
+            if not c or c < 100:
+                continue
+            # "hodnota zákazky" je súčasťou "Predpokladaná hodnota zákazky" –
+            # bez tejto kontroly by sa PHZ zapísala aj ako konečná cena
+            if druh == "konecna" and "predpoklad" in \
+                    t[max(0, m.start() - 25):m.start() + 20].lower():
+                continue
+            okolie = t[m.start():m.end() + 30]
+            najdene.append((druh, c, dph_priznak(okolie)))
     # ponuky: sumy v zápisnici (aspoň 3 rôzne, aby to neboli pokuty a %)
     sumy = []
     for m in RE_SUMA.finditer(t):
