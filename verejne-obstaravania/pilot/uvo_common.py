@@ -52,13 +52,13 @@ def search_url(path: str, **params) -> str:
 
 # ---------------------------------------------------------------- zákazky ---
 
-def zakazky_page(cpv: str, page_no: int):
+def zakazky_page(cpv: str, page_no: int, druh: str = "PRACE"):
     """Jedna stránka výsledkov vyhľadávania zákaziek pre daný CPV kód.
 
     Vráti zoznam dictov: id, nazov, obstaravatel, cpv_popis, kraj, aktualizacia.
     """
     url = search_url("/vyhladavanie/vyhladavanie-zakaziek",
-                     cpv=cpv, druhZakazky="PRACE", page=page_no)
+                     cpv=cpv, druhZakazky=druh, page=page_no)
     page = fetch(url)
     vysledky = []
     # riadky tabuľky: <tr> ... detail/<id> ... </tr>
