@@ -35,14 +35,16 @@ DROP TABLE IF EXISTS pd_ceny;
 CREATE TABLE pd_ceny (
     zakazka_id TEXT, nazov TEXT, obstaravatel TEXT, cpv TEXT, kraj TEXT,
     datum TEXT, druh_ceny TEXT, cena REAL, dph TEXT, uchadzac TEXT,
-    zdroj_dokument TEXT, zdroj_url TEXT);
+    zdroj_dokument TEXT, zdroj_url TEXT, stupen TEXT, ic INTEGER,
+    ad INTEGER);
 CREATE INDEX idx_pdc_zak ON pd_ceny(zakazka_id);
 
 DROP TABLE IF EXISTS pd_zakazky;
 CREATE TABLE pd_zakazky (
     zakazka_id TEXT PRIMARY KEY, nazov TEXT, obstaravatel TEXT, cpv TEXT,
     kraj TEXT, datum TEXT, rok TEXT, phz REAL, konecna REAL, pomer REAL,
-    pocet_ponuk INTEGER, zdroj_url TEXT);
+    pocet_ponuk INTEGER, stupen TEXT, ic INTEGER, ad INTEGER,
+    zdroj_url TEXT);
 CREATE INDEX idx_pdz_phz ON pd_zakazky(phz);
 
 DROP TABLE IF EXISTS pd_statistika;
@@ -89,14 +91,19 @@ def main():
                     r["cena"] = float(r["cena"])
                 except (ValueError, KeyError):
                     continue
-                riadky.append(tuple(r[k] for k in (
+                riadky.append(tuple(r.get(k, "") for k in (
                     "zakazka_id", "nazov", "obstaravatel", "cpv", "kraj",
                     "datum", "druh_ceny", "cena", "dph", "uchadzac",
-                    "zdroj_dokument", "zdroj_url")))
+                    "zdroj_dokument", "zdroj_url", "stupen", "ic", "ad")))
                 d = zak.setdefault(r["zakazka_id"], {
                     "nazov": r["nazov"], "obstaravatel": r["obstaravatel"],
                     "cpv": r["cpv"], "kraj": r["kraj"], "datum": r["datum"],
-                    "url": r["zdroj_url"], "ponuky": []})
+                    "url": r["zdroj_url"], "ponuky": [],
+                    "stupen": "", "ic": 0, "ad": 0})
+                if r.get("stupen"):
+                    d["stupen"] = d["stupen"] or r["stupen"]
+                d["ic"] = max(d["ic"], int(r.get("ic") or 0))
+                d["ad"] = max(d["ad"], int(r.get("ad") or 0))
                 c = bez_dph(r["cena"], r["dph"])
                 if r["druh_ceny"] == "phz":
                     d["phz"] = min(c, d.get("phz", c))
@@ -105,7 +112,7 @@ def main():
                 else:
                     d["ponuky"].append(c)
 
-    con.executemany("INSERT INTO pd_ceny VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    con.executemany("INSERT INTO pd_ceny VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     riadky)
 
     zapis = []
@@ -115,8 +122,9 @@ def main():
         rok = (d["datum"] or "")[-4:]
         zapis.append((zid, d["nazov"], d["obstaravatel"], d["cpv"], d["kraj"],
                       d["datum"], rok if rok.isdigit() else "", phz, kon,
-                      pomer, len(d["ponuky"]), d["url"]))
-    con.executemany("INSERT INTO pd_zakazky VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                      pomer, len(d["ponuky"]), d["stupen"], d["ic"], d["ad"],
+                      d["url"]))
+    con.executemany("INSERT INTO pd_zakazky VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     zapis)
     con.execute("INSERT INTO pd_fts SELECT zakazka_id, nazov, obstaravatel "
                 "FROM pd_zakazky")
@@ -150,7 +158,10 @@ def main():
     for r in con.execute("SELECT * FROM pd_statistika"):
         print(f"  {r[0]:12} {r[1]:18} n={r[2]:4}  medián {r[3]:>10,.2f}"
               f"  p25 {r[4]:>10,.2f}  p75 {r[5]:>10,.2f}")
-    print(f"\nhotovo -> {args.db}")
+    zn = q("SELECT count(*) FROM pd_zakazky WHERE stupen <> ''")
+    print(f"\nrozsah zistený pri {zn} zákazkách "
+          f"(stupeň PD; IČ/AD ako príznaky)")
+    print(f"hotovo -> {args.db}")
     con.close()
 
 

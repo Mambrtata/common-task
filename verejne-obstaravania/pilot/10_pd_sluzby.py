@@ -74,6 +74,25 @@ def dph_priznak(kontext: str) -> str:
     return ""
 
 
+RE_STUPEN = (
+    ("realizačný", r"realiza[čc]n\w{0,3} (projekt|dokument|stupe[ňn])|"
+                   r"vykon[áa]vac\w{0,3} (projekt|dokument)|\bDRS\b"),
+    ("DSP", r"stavebn\w{0,3} povolen|\bDSP\b|projekt pre stavebn"),
+    ("DÚR", r"[úu]zemn\w{0,3} rozhodnut|\bD[UÚ]R\b|projekt pre [úu]zemn"),
+    ("štúdia", r"[šs]t[úu]di\w{0,2} (uskuto[čc]nite|realizovate)"),
+)
+RE_IC = re.compile(r"in[žz]inier\w{0,4} [čc]innos", re.I)
+RE_AD = re.compile(r"autorsk\w{0,3} (dozor|doh[ľl]ad)|odborn\w{0,3} autorsk",
+                   re.I)
+
+
+def rozsah_z_textu(t: str):
+    """Zistí stupeň PD a či cena zahŕňa inžiniersku činnosť a autorský dozor."""
+    stupne = [s for s, pat in RE_STUPEN if re.search(pat, t, re.I)]
+    return ("+".join(stupne[:2]), int(bool(RE_IC.search(t))),
+            int(bool(RE_AD.search(t))))
+
+
 def text_pdf(data: bytes, maxp: int = 20) -> str:
     try:
         pdf = pdfium.PdfDocument(data)
@@ -155,6 +174,7 @@ def spracuj_zakazku(z, writer, max_mb=5.0, max_dokumentov=2):
                 continue
             if len(t) < 200:          # sken bez textovej vrstvy
                 continue
+            stupen, ic, ad = rozsah_z_textu(t)
             for druh, cena, dph in ceny_z_textu(t):
                 writer.writerow({
                     "zakazka_id": z["id"], "nazov": z["nazov"][:150],
@@ -164,7 +184,8 @@ def spracuj_zakazku(z, writer, max_mb=5.0, max_dokumentov=2):
                     "uchadzac": d["dodavatel"][:80],
                     "zdroj_dokument": typ,
                     "zdroj_url": f"{BASE}/vyhladavanie/vyhladavanie-zakaziek"
-                                 f"/detail/{z['id']}"})
+                                 f"/detail/{z['id']}",
+                    "stupen": stupen, "ic": ic, "ad": ad})
                 riadky += 1
         if riadky:            # máme ceny, ďalšie dokumenty netreba
             break
@@ -232,7 +253,7 @@ def main():
         w = csv.DictWriter(f, fieldnames=[
             "zakazka_id", "nazov", "obstaravatel", "cpv", "kraj", "datum",
             "druh_ceny", "cena", "dph", "uchadzac", "zdroj_dokument",
-            "zdroj_url"])
+            "zdroj_url", "stupen", "ic", "ad"])
         if novy:
             w.writeheader()
         spolu = 0
