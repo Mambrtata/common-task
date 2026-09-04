@@ -58,6 +58,17 @@ python3 scripts/get_refresh_token.py \
 Skript vypíše `ZOHO_REFRESH_TOKEN`. Ten platí, kým ho nezrušíš – access token
 si server obnovuje sám a nikam ho neukladá.
 
+Ak už máš nasadenú službu, nechaj token zapísať rovno do konfigurácie. Client
+ID aj Secret si skript prečíta z toho istého súboru, takže prepisuješ len kód
+a token sa nikde nevypíše:
+
+```bash
+sudo /opt/zoho-mail-mcp/venv/bin/python scripts/get_refresh_token.py \
+    --from-env /etc/zoho-mail-mcp.env \
+    --write-env /etc/zoho-mail-mcp.env \
+    --code ZZZZ
+```
+
 ### 3. Premenné prostredia
 
 Skopíruj `.env.example` a doplň hodnoty:

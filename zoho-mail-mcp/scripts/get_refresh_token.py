@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 # Import až po úprave cesty, nech skript funguje aj bez inštalácie balíčka.
 from zoho_mail_mcp.config import DATA_CENTERS, SCOPE_STRING
+from zoho_mail_mcp.envfile import parse_env_text, update_env_text
 
 
 def exchange_code(
@@ -55,21 +56,66 @@ def exchange_code(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--dc", required=True, choices=sorted(DATA_CENTERS), help="dátové centrum účtu")
-    parser.add_argument("--client-id", required=True)
-    parser.add_argument("--client-secret", required=True)
+    parser.add_argument("--dc", choices=sorted(DATA_CENTERS), help="dátové centrum účtu")
+    parser.add_argument("--client-id")
+    parser.add_argument("--client-secret")
     parser.add_argument("--code", required=True, help="kód z Self Client → Generate Code")
     parser.add_argument("--redirect-uri", default=None, help="len ak si použil Server-based Application")
+    parser.add_argument(
+        "--from-env",
+        metavar="SÚBOR",
+        help="prečíta ZOHO_DC, CLIENT_ID a CLIENT_SECRET z konfigurácie, nech ich netreba prepisovať",
+    )
+    parser.add_argument(
+        "--write-env",
+        metavar="SÚBOR",
+        help="zapíše získaný refresh token rovno do konfigurácie",
+    )
     args = parser.parse_args()
 
-    payload = exchange_code(
-        args.dc, args.client_id, args.client_secret, args.code, args.redirect_uri
-    )
+    dc, client_id, client_secret = args.dc, args.client_id, args.client_secret
+
+    if args.from_env:
+        try:
+            stored = parse_env_text(Path(args.from_env).read_text(encoding="utf-8"))
+        except OSError as exc:
+            print(f"Nepodarilo sa prečítať {args.from_env}: {exc}", file=sys.stderr)
+            return 1
+        dc = dc or stored.get("ZOHO_DC")
+        client_id = client_id or stored.get("ZOHO_CLIENT_ID")
+        client_secret = client_secret or stored.get("ZOHO_CLIENT_SECRET")
+
+    missing = [
+        name
+        for name, value in (
+            ("--dc", dc), ("--client-id", client_id), ("--client-secret", client_secret)
+        )
+        if not value
+    ]
+    if missing:
+        print(
+            "Chýba: " + ", ".join(missing) + ". Zadaj ich prepínačmi alebo použi --from-env.",
+            file=sys.stderr,
+        )
+        return 1
+    if dc not in DATA_CENTERS:
+        print(f"Neznáme dátové centrum {dc!r}.", file=sys.stderr)
+        return 1
+
+    payload = exchange_code(dc, client_id, client_secret, args.code, args.redirect_uri)
 
     if "error" in payload:
         print(f"Zoho vrátilo chybu: {payload['error']}", file=sys.stderr)
+        print(f"Celá odpoveď: {json.dumps(payload, ensure_ascii=False)}", file=sys.stderr)
         if payload["error"] == "invalid_code":
             print("Kód je jednorazový a rýchlo expiruje – vygeneruj nový.", file=sys.stderr)
+        if payload["error"] in ("invalid_client", "general_error"):
+            print(
+                f"Skontroluj, či Self Client naozaj žije v dátovom centre {dc} "
+                f"(konzola na api-console.zoho.{'com' if dc == 'us' else dc}) "
+                "a či sú Client ID a Secret z tej istej aplikácie.",
+                file=sys.stderr,
+            )
         return 1
 
     refresh_token = payload.get("refresh_token")
@@ -82,12 +128,35 @@ def main() -> int:
         print(json.dumps(payload, ensure_ascii=False, indent=2), file=sys.stderr)
         return 1
 
+    if args.write_env:
+        target = Path(args.write_env)
+        try:
+            original = target.read_text(encoding="utf-8")
+        except OSError as exc:
+            print(f"Nepodarilo sa prečítať {target}: {exc}", file=sys.stderr)
+            return 1
+        updated = update_env_text(
+            original,
+            {
+                "ZOHO_DC": dc,
+                "ZOHO_CLIENT_ID": client_id,
+                "ZOHO_CLIENT_SECRET": client_secret,
+                "ZOHO_REFRESH_TOKEN": refresh_token,
+            },
+        )
+        target.write_text(updated, encoding="utf-8")
+        print(f"Refresh token som zapísal do {target}.")
+        print("Token sa nikde nevypisuje, nič neprepisuj ručne.\n")
+        print("Reštartuj službu:")
+        print("    sudo systemctl restart zoho-mail-mcp")
+        return 0
+
     print("Hotovo.\n")
     print("Ak konektor beží ako systemd služba, otvor /etc/zoho-mail-mcp.env")
     print("a doplň tieto riadky – bez slova 'export' a bez úvodzoviek:\n")
-    print(f"ZOHO_DC={args.dc}")
-    print(f"ZOHO_CLIENT_ID={args.client_id}")
-    print(f"ZOHO_CLIENT_SECRET={args.client_secret}")
+    print(f"ZOHO_DC={dc}")
+    print(f"ZOHO_CLIENT_ID={client_id}")
+    print(f"ZOHO_CLIENT_SECRET={client_secret}")
     print(f"ZOHO_REFRESH_TOKEN={refresh_token}")
     print("\nPotom službu reštartuj:")
     print("    sudo systemctl restart zoho-mail-mcp\n")
