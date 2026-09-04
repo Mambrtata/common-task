@@ -386,9 +386,19 @@ async def zoho_get_message(
                 message_id,
                 include_block_content=include_blockquotes,
             )
-            body, truncated = truncate(html_to_text(content.get("content")), limit)
+            raw = content.get("content")
+            body, truncated = truncate(html_to_text(raw), limit)
             payload["body"] = body
             payload["bodyTruncated"] = truncated
+            if not body:
+                # Nech je z odpovede jasné, kde sa text stratil: či ho
+                # nevrátilo Zoho, alebo z neho nič nezostalo po prevode.
+                payload["bodyNote"] = (
+                    "Zoho k tejto správe nevrátilo žiadny obsah."
+                    if not raw
+                    else f"Obsah prišiel ({len(raw)} znakov HTML), ale text z neho "
+                    "nezostal – správa je zrejme len obrázok bez textovej vrstvy."
+                )
             if truncated:
                 payload["bodyNote"] = (
                     f"Telo bolo skrátené na {limit} znakov. Vyšší strop nastavíš "
