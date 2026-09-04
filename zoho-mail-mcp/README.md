@@ -103,6 +103,45 @@ Do `.mcp.json` v projekte (alebo do `claude_desktop_config.json`):
 Po štarte over spojenie nástrojom `zoho_check_connection` – vypíše dátové
 centrum, scopes a schránky, ktoré konektor vidí.
 
+### 4b. Alternatíva: cloud session, bez lokálneho klonu
+
+Ak pracuješ len cez claude.ai/code a repozitár nemáš lokálne, konektor sa dá
+zapnúť priamo v cloud prostredí. Registráciu už rieši `.mcp.json` v koreni
+repozitára – načíta server cez `PYTHONPATH`, takže netreba nič inštalovať
+ručne. Zvyšok sa nastavuje v **claude.ai/code → nastavenia prostredia**:
+
+1. **Setup script** – vlož obsah `zoho-mail-mcp/scripts/setup-cloud.sh`.
+   Doinštaluje knižnicu `mcp`, ktorá v obraze nie je.
+2. **Environment variables** – vo formáte `.env`:
+
+   ```
+   ZOHO_DC=eu
+   ZOHO_CLIENT_ID=1000.XXXX
+   ZOHO_CLIENT_SECRET=YYYY
+   ZOHO_REFRESH_TOKEN=1000.ZZZZ
+   ```
+
+   Session ich prekopíruje do bežných premenných prostredia a server ich zdedí.
+3. **Network access** – prepni na **Custom** a pridaj:
+
+   ```
+   mail.zoho.eu
+   accounts.zoho.eu
+   ```
+
+   Zaškrtni aj *„Also include default list of common package managers"*, inak
+   setup skriptu prestane fungovať PyPI. Predvolená úroveň **Trusted** Zoho
+   nepúšťa, takže bez tohto kroku konektor spadne na chybe siete.
+
+Zmena setup skriptu alebo zoznamu domén znamená, že sa prostredie prebuduje –
+prejaví sa to až v novej session, nie v tej rozbehnutej.
+
+> **Pozor na token v cloud prostredí.** Premenné prostredia si podľa
+> dokumentácie prečíta ktokoľvek, kto to prostredie používa, a číta ich aj
+> každá session v ňom. Pri firemných schránkach to zváž – ak to má byť
+> uzavretejšie, drž konektor lokálne, alebo si preň založ samostatné
+> prostredie, ktoré nepoužívaš na bežnú prácu.
+
 ## Nástroje
 
 | Nástroj | Čo robí |
