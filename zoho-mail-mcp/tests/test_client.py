@@ -171,6 +171,28 @@ def test_throttling_is_retried():
     assert delays == [5.0]  # Retry-After má prednosť pred vlastným backoffom
 
 
+def test_json_calls_ask_for_json():
+    client, transport = make_client({"/api/accounts": zoho_ok(ACCOUNTS)})
+    client.list_accounts()
+    api_call = next(c for c in transport.calls if c["path"] == "/api/accounts")
+    assert api_call["headers"]["Accept"] == "application/json"
+
+
+def test_attachment_download_asks_for_binary():
+    # So žiadosťou o JSON vracia Zoho na tomto endpointe 406 Not Acceptable.
+    path = "/api/accounts/111/folders/9/messages/77/attachments/a1"
+    routes = {
+        path: HttpResponse(
+            status=200,
+            headers={"Content-Type": "application/pdf"},
+            content=b"%PDF-1.4",
+        )
+    }
+    client, transport = make_client(routes)
+    assert client.get_attachment_content("111", "9", "77", "a1") == b"%PDF-1.4"
+    assert transport.calls[-1]["headers"]["Accept"] == "application/octet-stream"
+
+
 def test_message_content_requests_folder_scoped_path():
     path = "/api/accounts/111/folders/9/messages/77/content"
     client, transport = make_client({path: zoho_ok({"content": "<p>ahoj</p>"})})

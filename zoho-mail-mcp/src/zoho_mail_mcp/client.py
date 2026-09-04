@@ -20,6 +20,10 @@ ACCOUNTS_CACHE_SECONDS = 300
 # Chybové kódy, po ktorých má zmysel zahodiť access token a skúsiť to raz znova.
 _TOKEN_ERROR_CODES = frozenset({"INVALID_OAUTHTOKEN", "OAUTH_TOKEN_EXPIRED"})
 
+JSON_ACCEPT = "application/json"
+# Endpoint na prílohy odpovie 406 Not Acceptable, ak si vypýtame JSON.
+BINARY_ACCEPT = "application/octet-stream"
+
 
 class ZohoMailClient:
     """Obaľuje Zoho Mail API. Každá metóda je GET – zápis vôbec neumožňuje."""
@@ -45,7 +49,13 @@ class ZohoMailClient:
 
     # ---------------------------------------------------------------- HTTP
 
-    def _fetch(self, method: str, path: str, params: Mapping[str, Any] | None = None):
+    def _fetch(
+        self,
+        method: str,
+        path: str,
+        params: Mapping[str, Any] | None = None,
+        accept: str = JSON_ACCEPT,
+    ):
         """Spoločná časť: zostaví URL, pošle GET a raz zopakuje pri starom tokene."""
         if method != "GET":
             raise ReadOnlyViolation(
@@ -53,12 +63,12 @@ class ZohoMailClient:
             )
 
         url = f"{self._config.api_base}{path}{_encode_params(params)}"
-        response = self._send(url)
+        response = self._send(url, accept)
 
         # Token mohol medzitým vypršať alebo byť zrušený – jeden pokus s novým.
         if response.status in (401, 403) or _error_code_of(response) in _TOKEN_ERROR_CODES:
             self._tokens.invalidate()
-            response = self._send(url)
+            response = self._send(url, accept)
 
         return url, response
 
@@ -70,7 +80,7 @@ class ZohoMailClient:
 
     def _request_bytes(self, path: str, params: Mapping[str, Any] | None = None) -> bytes:
         """Ako _request, ale vráti surové bajty – pre prílohy."""
-        url, response = self._fetch("GET", path, params)
+        url, response = self._fetch("GET", path, params, accept=BINARY_ACCEPT)
 
         # Pri chybe Zoho pošle JSON aj tam, kde inak posiela súbor.
         if response.status >= 400 or _looks_like_json(response):
@@ -79,7 +89,7 @@ class ZohoMailClient:
 
         return response.content
 
-    def _send(self, url: str):
+    def _send(self, url: str, accept: str = JSON_ACCEPT):
         token = self._tokens.get_access_token()
         return request_with_retries(
             self._transport,
@@ -87,7 +97,7 @@ class ZohoMailClient:
             url,
             headers={
                 "Authorization": f"Zoho-oauthtoken {token}",
-                "Accept": "application/json",
+                "Accept": accept,
             },
             timeout=self._config.timeout,
             max_retries=self._config.max_retries,
