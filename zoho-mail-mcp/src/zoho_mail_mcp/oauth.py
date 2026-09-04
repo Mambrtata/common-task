@@ -8,7 +8,7 @@ import time
 import urllib.parse
 from collections.abc import Callable
 
-from .config import SCOPE_STRING, Config
+from .config import Config
 from .errors import ZohoAuthError
 from .transport import Transport, request_with_retries, urlopen_transport
 
@@ -60,13 +60,14 @@ class TokenProvider:
 
     def _refresh(self) -> tuple[str, int]:
         url = f"{self._config.accounts_base}/oauth/v2/token"
+        # Zoho pri obnove čaká presne tieto štyri parametre. Scope sa neposiela –
+        # v dokumentácii pre refresh nie je a token sa preskopovať aj tak nedá.
         payload = urllib.parse.urlencode(
             {
                 "refresh_token": self._config.refresh_token,
                 "client_id": self._config.client_id,
                 "client_secret": self._config.client_secret,
                 "grant_type": "refresh_token",
-                "scope": SCOPE_STRING,
             }
         ).encode("utf-8")
 
@@ -121,6 +122,12 @@ def _explain_token_error(error: str, config: Config) -> str:
         "invalid_grant": (
             "Refresh token neplatí. Býva to tým, že bol vydaný v inom dátovom "
             f"centre, než je nastavené ZOHO_DC={config.data_center}."
+        ),
+        "general_error": (
+            "Zoho nepovedalo viac. Skontroluj, či v konfigurácii nie sú zvyšky "
+            "zástupného textu (napr. '<tvoj client secret>'), či sa Client ID a "
+            "Secret zhodujú s tou istou aplikáciou v konzole a či refresh token "
+            "nie je skrátený alebo zlepený s ďalším riadkom."
         ),
     }
     hint = hints.get(error, "")

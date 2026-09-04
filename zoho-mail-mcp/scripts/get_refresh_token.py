@@ -87,7 +87,7 @@ def main() -> int:
     print("a doplň tieto riadky – bez slova 'export' a bez úvodzoviek:\n")
     print(f"ZOHO_DC={args.dc}")
     print(f"ZOHO_CLIENT_ID={args.client_id}")
-    print("ZOHO_CLIENT_SECRET=<tvoj client secret>")
+    print(f"ZOHO_CLIENT_SECRET={args.client_secret}")
     print(f"ZOHO_REFRESH_TOKEN={refresh_token}")
     print("\nPotom službu reštartuj:")
     print("    sudo systemctl restart zoho-mail-mcp\n")

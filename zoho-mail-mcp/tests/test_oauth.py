@@ -41,12 +41,15 @@ def test_invalidate_forces_new_token(config, transport):
     assert provider.get_access_token() == "at-3"
 
 
-def test_refresh_request_asks_only_for_read_scopes(config, transport):
+def test_refresh_sends_exactly_what_zoho_documents(config, transport):
     TokenProvider(config, transport=transport).get_access_token()
     body = transport.calls[0]["body"]
     assert "grant_type=refresh_token" in body
-    assert "ZohoMail.messages.READ" in body
-    assert "ALL" not in body
+    assert "refresh_token=rt" in body
+    assert "client_id=cid" in body
+    assert "client_secret=secret" in body
+    # Scope pri obnove Zoho nedokumentuje a jeho posielanie vracia general_error.
+    assert "scope" not in body
 
 
 def test_refresh_goes_to_the_configured_data_center(config, transport):
@@ -59,6 +62,12 @@ def test_invalid_grant_mentions_data_center(config, transport):
     provider = TokenProvider(config, transport=transport)
     with pytest.raises(ZohoAuthError, match="dátovom centre"):
         provider.get_access_token()
+
+
+def test_general_error_hints_at_placeholder_values(config, transport):
+    transport.token_response = json.dumps({"error": "general_error"})
+    with pytest.raises(ZohoAuthError, match="zástupného textu"):
+        TokenProvider(config, transport=transport).get_access_token()
 
 
 def test_invalid_client_is_explained(config, transport):
