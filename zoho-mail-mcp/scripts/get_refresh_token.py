@@ -82,12 +82,18 @@ def main() -> int:
         print(json.dumps(payload, ensure_ascii=False, indent=2), file=sys.stderr)
         return 1
 
-    print("Hotovo. Doplň do prostredia:\n")
-    print(f"export ZOHO_DC={args.dc}")
-    print(f"export ZOHO_CLIENT_ID={args.client_id}")
-    print("export ZOHO_CLIENT_SECRET=<tvoj client secret>")
-    print(f"export ZOHO_REFRESH_TOKEN={refresh_token}")
-    print("\nRefresh token je heslo do schránky – nekomituj ho do gitu.")
+    print("Hotovo.\n")
+    print("Ak konektor beží ako systemd služba, otvor /etc/zoho-mail-mcp.env")
+    print("a doplň tieto riadky – bez slova 'export' a bez úvodzoviek:\n")
+    print(f"ZOHO_DC={args.dc}")
+    print(f"ZOHO_CLIENT_ID={args.client_id}")
+    print("ZOHO_CLIENT_SECRET=<tvoj client secret>")
+    print(f"ZOHO_REFRESH_TOKEN={refresh_token}")
+    print("\nPotom službu reštartuj:")
+    print("    sudo systemctl restart zoho-mail-mcp\n")
+    print("V stdio režime sú to tie isté hodnoty ako premenné prostredia,")
+    print("tam sa pred ne 'export' píše.\n")
+    print("Refresh token je heslo do schránky – nekomituj ho do gitu.")
     return 0
 
 
