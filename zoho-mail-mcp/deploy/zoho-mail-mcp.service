@@ -14,6 +14,11 @@ Documentation=https://github.com/Mambrtata/common-task
 After=network-online.target zerotier-one.service
 Wants=network-online.target
 
+# Bez tohto systemd po piatich rýchlych pokusoch prestane skúšať. Služba sa
+# viaže priamo na ZeroTier adresu, a kým ju ZeroTier po štarte pridelí, môže
+# to trvať dlhšie – vtedy sa treba pokúšať ďalej, nie to vzdať.
+StartLimitIntervalSec=0
+
 [Service]
 Type=simple
 User=zoho-mcp
@@ -32,7 +37,7 @@ Environment=PYTHONPATH=/opt/common-task/zoho-mail-mcp/src
 ExecStart=/usr/bin/python3 -m zoho_mail_mcp --transport http
 
 Restart=on-failure
-RestartSec=5s
+RestartSec=10s
 
 # Služba potrebuje len čítať svoj kód a chodiť na sieť.
 # AF_UNIX tam musí byť – cez lokálny socket ide rozlišovanie mien.
