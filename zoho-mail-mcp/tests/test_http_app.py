@@ -8,6 +8,7 @@ from starlette.testclient import TestClient
 from zoho_mail_mcp.errors import ConfigError
 from zoho_mail_mcp.http_app import build_app, default_allowed_hosts
 from zoho_mail_mcp.server import mcp
+from zoho_mail_mcp.signing import signed_query
 
 TOKEN = "u" * 32
 HOST = "10.147.17.5"
@@ -87,7 +88,7 @@ def test_tools_are_listed_over_http(client):
     payload = _first_json_message(response)
     names = {tool["name"] for tool in payload["result"]["tools"]}
     assert "zoho_list_messages" in names
-    assert len(names) == 9
+    assert len(names) == 10
 
 
 def test_foreign_host_header_is_refused(client):
@@ -196,3 +197,47 @@ def test_path_traversal_is_refused(files_client, name):
     response = files_client.get(f"/files/{name}", headers=AUTH)
     assert response.status_code in (400, 404)
     assert b"toto sa von dostat nesmie" not in response.content
+
+
+def test_signed_link_works_without_any_header(files_client):
+    """Toto je cesta, ktorou si súbor stiahne klient – token po ruke nemá."""
+    query = signed_query("faktura.pdf", TOKEN)
+    response = files_client.get(
+        f"/files/faktura.pdf?{query}", headers={"Host": f"{HOST}:{PORT}"}
+    )
+    assert response.status_code == 200
+    assert response.content == b"%PDF-1.4 test"
+
+
+def test_signed_link_for_one_file_does_not_open_another(files_client, tmp_path):
+    (tmp_path / "prilohy" / "ina.pdf").write_bytes(b"ina priloha")
+    query = signed_query("faktura.pdf", TOKEN)
+    response = files_client.get(
+        f"/files/ina.pdf?{query}", headers={"Host": f"{HOST}:{PORT}"}
+    )
+    assert response.status_code == 401
+
+
+def test_forged_signature_is_refused(files_client):
+    response = files_client.get(
+        "/files/faktura.pdf?exp=9999999999&sig=" + "0" * 32,
+        headers={"Host": f"{HOST}:{PORT}"},
+    )
+    assert response.status_code == 401
+
+
+def test_expired_signature_is_refused(files_client):
+    query = signed_query("faktura.pdf", TOKEN, ttl=-10)
+    response = files_client.get(
+        f"/files/faktura.pdf?{query}", headers={"Host": f"{HOST}:{PORT}"}
+    )
+    assert response.status_code == 401
+
+
+def test_signature_does_not_open_the_mcp_endpoint(files_client):
+    """Podpis platí len na súbory, nie na volania MCP."""
+    query = signed_query("faktura.pdf", TOKEN)
+    response = files_client.post(
+        f"/mcp?{query}", json=INITIALIZE, headers=MCP_HEADERS
+    )
+    assert response.status_code == 401

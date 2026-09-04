@@ -250,7 +250,8 @@ Log služby: `journalctl -u zoho-mail-mcp -f`
 | `zoho_get_message` | jedna správa vrátane tela prevedeného na čistý text |
 | `zoho_get_thread` | všetky správy jedného vlákna |
 | `zoho_list_attachments` | metadáta príloh – názov, veľkosť, `attachmentId` |
-| `zoho_download_attachment` | stiahne prílohu a uloží ju na disk servera |
+| `zoho_download_attachment` | stiahne prílohu ľubovoľného typu a dá odkaz na jej prenesenie |
+| `zoho_read_attachment` | prečíta obsah prílohy ako text (PDF s textovou vrstvou, csv, txt…) |
 
 ### Typický postup
 
@@ -271,13 +272,22 @@ stiahne a uloží do `ZOHO_DOWNLOAD_DIR` (predvolene
 `/var/lib/zoho-mail-mcp/attachments`). Väčšie súbory než
 `ZOHO_MAX_ATTACHMENT_BYTES` (predvolene 25 MB) odmietne.
 
-V sieťovom režime vráti aj `downloadUrl`. Stiahnutie vyžaduje tú istú hlavičku
-`Authorization` ako volania MCP:
+Konektor beží na inom stroji než klient, takže samotná cesta na disku je
+volajúcemu na nič. V sieťovom režime preto vráti aj `fetchCommand` – hotový
+príkaz, ktorý súbor prenesie do priečinka, v ktorom klient práve pracuje:
 
 ```bash
-curl -H "Authorization: Bearer <token>" \
-     -O http://10.243.56.170:8765/files/Faktura_8_2026.pdf
+curl -fsSL -o "Faktura_8_2026.pdf" "http://10.243.56.170:8765/files/Faktura_8_2026.pdf?exp=…&sig=…"
 ```
+
+Odkaz nesie vlastný podpis (HMAC z prístupového tokenu), takže hlavičku
+`Authorization` nepotrebuje – klient ju po ruke nemá, token drží jeho
+konfigurácia, nie model. Podpis platí hodinu a viaže sa na jeden konkrétny
+súbor: iný súbor cez ten istý odkaz nestiahneš a na volania MCP neplatí vôbec.
+
+Ak ti stačí vedieť, čo je v prílohe, `zoho_read_attachment` vráti rovno text –
+prenášať súbor netreba. Číta PDF s textovou vrstvou a textové formáty; skeny
+bez textovej vrstvy a binárne formáty odmietne s vysvetlením.
 
 Názov súboru pochádza od odosielateľa, takže sa pred uložením očistí: oddeľovače
 ciest sa nahradia podčiarkovníkom, diakritika prepíše na ASCII a vedúce bodky

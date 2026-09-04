@@ -84,7 +84,7 @@ def call(name, arguments=None):
 
 def test_all_tools_are_marked_read_only():
     tools = anyio.run(server.mcp.list_tools)
-    assert len(tools) == 9
+    assert len(tools) == 10
     assert all(tool.annotations.read_only_hint for tool in tools)
     assert all(tool.annotations.destructive_hint is False for tool in tools)
 
@@ -283,13 +283,27 @@ def test_no_download_url_without_network_mode(installed):
 
 
 def test_download_url_appears_in_network_mode(installed):
-    server.set_public_base("http://10.243.56.170:8765")
+    server.set_public_base("http://10.243.56.170:8765", "tajny-podpisovy-kluc")
     payload = call(
         "zoho_download_attachment",
         {"message_id": "77", "folder_id": "9", "attachment_id": "a1"},
     )
-    assert payload["downloadUrl"] == "http://10.243.56.170:8765/files/faktura.pdf"
-    assert "Authorization" in payload["downloadHint"]
+    assert payload["downloadUrl"].startswith(
+        "http://10.243.56.170:8765/files/faktura.pdf?"
+    )
+    # Odkaz nesie vlastný podpis, takže hlavičku nepotrebuje.
+    assert "sig=" in payload["downloadUrl"] and "exp=" in payload["downloadUrl"]
+    assert payload["fetchCommand"].startswith('curl -fsSL -o "faktura.pdf"')
+    assert "priečinku projektu" in payload["fetchHint"]
+
+
+def test_no_link_without_a_signing_secret(installed):
+    server.set_public_base("http://10.243.56.170:8765", None)
+    payload = call(
+        "zoho_download_attachment",
+        {"message_id": "77", "folder_id": "9", "attachment_id": "a1"},
+    )
+    assert "downloadUrl" not in payload
 
 
 def test_oversized_attachment_is_refused(installed):

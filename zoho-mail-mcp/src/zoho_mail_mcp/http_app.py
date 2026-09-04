@@ -20,6 +20,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from .attachments import resolve_inside
 from .config import download_dir_from_env
 from .errors import ConfigError, ZohoMailMCPError
+from .signing import verify as verify_signature
 
 logger = logging.getLogger(__name__)
 
@@ -34,17 +35,24 @@ FILES_PREFIX = "/files"
 class BearerTokenMiddleware:
     """Prepustí len požiadavky so správnou hlavičkou Authorization: Bearer."""
 
-    def __init__(self, app: ASGIApp, token: str, exempt_paths: frozenset[str] = frozenset()) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        token: str,
+        exempt_paths: frozenset[str] = frozenset(),
+        signed_prefix: str | None = None,
+    ) -> None:
         self._app = app
         self._token = token
         self._exempt_paths = exempt_paths
+        self._signed_prefix = signed_prefix
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http" or scope.get("path") in self._exempt_paths:
             await self._app(scope, receive, send)
             return
 
-        if not self._authorized(scope):
+        if not self._authorized(scope) and not self._has_valid_signature(scope):
             client = scope.get("client")
             logger.warning(
                 "Odmietnutá požiadavka bez platného tokenu z %s",
@@ -59,6 +67,15 @@ class BearerTokenMiddleware:
             return
 
         await self._app(scope, receive, send)
+
+    def _has_valid_signature(self, scope: Scope) -> bool:
+        """Podpísaný odkaz na konkrétny súbor platí namiesto hlavičky."""
+        path = scope.get("path", "")
+        if not self._signed_prefix or not path.startswith(self._signed_prefix + "/"):
+            return False
+        name = path[len(self._signed_prefix) + 1:]
+        query = scope.get("query_string", b"").decode("latin-1")
+        return verify_signature(name, query, self._token)
 
     def _authorized(self, scope: Scope) -> bool:
         for raw_name, raw_value in scope.get("headers", []):
@@ -144,7 +161,12 @@ def build_app(
         ],
         lifespan=lambda scope: inner.router.lifespan_context(scope),
     )
-    return BearerTokenMiddleware(app, token, exempt_paths=frozenset({HEALTH_PATH}))
+    return BearerTokenMiddleware(
+        app,
+        token,
+        exempt_paths=frozenset({HEALTH_PATH}),
+        signed_prefix=FILES_PREFIX,
+    )
 
 
 def serve_http(

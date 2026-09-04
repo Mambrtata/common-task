@@ -98,3 +98,88 @@ def resolve_inside(directory: Path, name: str) -> Path:
     if candidate != root and root not in candidate.parents:
         raise ZohoMailMCPError(f"Cesta {name!r} vedie mimo priečinka s prílohami.")
     return candidate
+
+
+# --------------------------------------------------------------- čítanie obsahu
+
+# Prípony, ktoré vieme prečítať priamo ako text.
+TEXT_SUFFIXES = frozenset(
+    {".txt", ".csv", ".tsv", ".md", ".json", ".xml", ".html", ".htm", ".log", ".ics"}
+)
+
+
+class UnsupportedAttachment(ZohoMailMCPError):
+    """Z tohto typu prílohy text vytiahnuť nevieme."""
+
+
+def extract_text(filename: str | None, content: bytes) -> tuple[str, str]:
+    """Vráti (text, druh). Druh je 'pdf' alebo 'text'.
+
+    Obrázky, archívy a tabuľky sa nečítajú – na tie treba súbor stiahnuť.
+    """
+    name = (filename or "").lower()
+
+    if name.endswith(".pdf") or content[:5] == b"%PDF-":
+        return _pdf_to_text(content), "pdf"
+
+    if any(name.endswith(suffix) for suffix in TEXT_SUFFIXES):
+        return _decode(content), "text"
+
+    # Bez použiteľnej prípony skúsime, či to nie je obyčajný text.
+    if _looks_like_text(content):
+        return _decode(content), "text"
+
+    raise UnsupportedAttachment(
+        f"Prílohu {filename!r} neviem previesť na text. Čítať viem PDF a textové "
+        "formáty; ostatné si stiahni cez zoho_download_attachment."
+    )
+
+
+def _pdf_to_text(content: bytes) -> str:
+    try:
+        from pypdf import PdfReader
+    except ImportError as exc:  # pragma: no cover - závisí od inštalácie
+        raise UnsupportedAttachment(
+            "Na čítanie PDF chýba knižnica pypdf. Doinštaluj ju: pip install pypdf"
+        ) from exc
+
+    import io
+
+    try:
+        reader = PdfReader(io.BytesIO(content))
+        pages = [page.extract_text() or "" for page in reader.pages]
+    except Exception as exc:
+        raise UnsupportedAttachment(
+            f"PDF sa nepodarilo prečítať: {exc}. Býva to pri skenoch, kde je "
+            "text len obrázok."
+        ) from exc
+
+    text = "\n\n".join(page.strip() for page in pages if page.strip())
+    if not text.strip():
+        raise UnsupportedAttachment(
+            "PDF neobsahuje textovú vrstvu – je to zrejme sken. Text by z neho "
+            "dostalo až OCR, ktoré konektor nerobí."
+        )
+    return text
+
+
+def _decode(content: bytes) -> str:
+    for encoding in ("utf-8", "cp1250", "latin-1"):
+        try:
+            return content.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return content.decode("utf-8", errors="replace")
+
+
+def _looks_like_text(content: bytes) -> bool:
+    head = content[:2048]
+    if not head:
+        return False
+    if b"\x00" in head:  # binárne súbory takmer vždy obsahujú nulový bajt
+        return False
+    try:
+        head.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    return True
