@@ -145,7 +145,12 @@ sed -e "s|/opt/common-task/zoho-mail-mcp|${PKG_DIR}|g" \
 chmod 644 "$UNIT_FILE"
 
 systemctl daemon-reload
-systemctl enable --now "$SERVICE_NAME"
+systemctl enable "$SERVICE_NAME"
+
+# Reštart, nie `enable --now`: ten bežiacu službu nechá tak, takže po
+# aktualizácii kódu by ďalej bežala stará verzia.
+info "Reštartujem službu"
+systemctl restart "$SERVICE_NAME"
 
 # --- 6. kontrola ------------------------------------------------------------
 
