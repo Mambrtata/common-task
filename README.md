@@ -38,3 +38,12 @@ Súbory k jednotlivým predmetom pribúdajú postupne, ako prechádzame kurzom.
 > Poznámka: certifikát vydaný v Luxembursku je platný v celej EÚ, ale **registráciu prevádzkovateľa UAS**
 > si robíš v krajine svojho pobytu – pre SR cez slovensko.sk na Dopravnom úrade.
 > Viď `poznamky/10-slovensko-registracia.md`.
+
+---
+
+## Zoho Mail konektor
+
+V `zoho-mail-mcp/` je MCP server, cez ktorý vie Claude čítať poštu v Zoho Mail
+(priečinky, vyhľadávanie, telá mailov a vlákna). Je zámerne **len na čítanie** –
+nič neodosiela ani nemení. Nastavenie a zoznam nástrojov nájdeš
+v `zoho-mail-mcp/README.md`.
