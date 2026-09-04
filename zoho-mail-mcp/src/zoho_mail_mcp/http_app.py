@@ -68,8 +68,12 @@ class BearerTokenMiddleware:
             scheme, _, token = value.partition(" ")
             if scheme.lower() != "bearer":
                 return False
-            # compare_digest, nech sa token nedá uhádnuť meraním času.
-            return hmac.compare_digest(token.strip(), self._token)
+            # Porovnávame bajty, nie reťazce: compare_digest na reťazcoch
+            # vyhodí TypeError, keď v hlavičke pristane čokoľvek mimo ASCII,
+            # a z odmietnutej požiadavky by sa stala chyba servera.
+            return hmac.compare_digest(
+                token.strip().encode("utf-8"), self._token.encode("utf-8")
+            )
         return False
 
 

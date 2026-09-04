@@ -100,6 +100,25 @@ def test_foreign_host_header_is_refused(client):
     assert response.status_code != 200
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        "Bearer heslo pre používateľa jan: " + TOKEN,  # výzva sudo v hlavičke
+        "Bearer tokén-s-diakritikou-dlhý-dosť",
+        "Bearer " + "\U0001f600" * 10,
+    ],
+)
+def test_non_ascii_header_is_rejected_not_crashed(client, value):
+    """Čokoľvek mimo ASCII musí skončiť na 401, nie na chybe servera.
+
+    Hlavička ide ako bajty – presne tak ju posiela curl. Ako reťazec by ju
+    testovací klient odmietol už pri odosielaní a chybu by sme neodhalili.
+    """
+    headers = {**MCP_HEADERS, "Authorization": value.encode("utf-8")}
+    response = client.post("/mcp", json=INITIALIZE, headers=headers)
+    assert response.status_code == 401
+
+
 def test_short_token_is_refused_at_startup():
     with pytest.raises(ConfigError, match="aspoň 24 znakov"):
         build_app(mcp, token="kratky", host=HOST, port=PORT)
