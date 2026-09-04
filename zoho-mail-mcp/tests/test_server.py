@@ -316,3 +316,46 @@ def test_oversized_attachment_is_refused(installed):
                 {"message_id": "77", "folder_id": "9", "attachment_id": "a1"},
             )
         )
+
+
+def test_body_still_arrives_when_metadata_fails(tmp_path):
+    """Chyba v hlavičkách nesmie zhodiť celé volanie – telo je to podstatné."""
+    routes = {
+        **DEFAULT_ROUTES,
+        "/api/accounts/111/folders/9/messages/77/details": HttpResponse(
+            status=400, body='{"status":{"code":400},"data":{"errorCode":"INVALID_INPUT"}}'
+        ),
+    }
+    config = Config.from_env({**BASE_ENV, "ZOHO_DOWNLOAD_DIR": str(tmp_path)})
+    server.reset_client()
+    server._client_cache["client"] = ZohoMailClient(
+        config, transport=FakeTransport(routes), sleep=lambda _: None
+    )
+    server._client_cache["config"] = config
+    try:
+        payload = call("zoho_get_message", {"message_id": "77", "folder_id": "9"})
+        assert payload["body"] == "Dobrý deň,\n\nkedy to bude?"
+        assert "INVALID_INPUT" in payload["detailsError"]
+    finally:
+        server.reset_client()
+
+
+def test_metadata_still_arrives_when_body_fails(tmp_path):
+    routes = {
+        **DEFAULT_ROUTES,
+        "/api/accounts/111/folders/9/messages/77/content": HttpResponse(
+            status=400, body='{"status":{"code":400},"data":{"errorCode":"INVALID_INPUT"}}'
+        ),
+    }
+    config = Config.from_env({**BASE_ENV, "ZOHO_DOWNLOAD_DIR": str(tmp_path)})
+    server.reset_client()
+    server._client_cache["client"] = ZohoMailClient(
+        config, transport=FakeTransport(routes), sleep=lambda _: None
+    )
+    server._client_cache["config"] = config
+    try:
+        payload = call("zoho_get_message", {"message_id": "77", "folder_id": "9"})
+        assert payload["message"]["subject"] == "Termín dodania"
+        assert "INVALID_INPUT" in payload["bodyError"]
+    finally:
+        server.reset_client()
