@@ -1,8 +1,11 @@
 # systemd unit pre konektor v sieťovom režime.
 #
-# 1. Skopíruj na server ako /etc/systemd/system/zoho-mail-mcp.service
-# 2. Doplň cesty, ZeroTier adresu a vytvor /etc/zoho-mail-mcp.env (viď README)
-# 3. systemctl daemon-reload && systemctl enable --now zoho-mail-mcp
+# Najjednoduchšie je nechať to na inštalátor, ktorý si cesty doplní sám:
+#     sudo bash deploy/install.sh
+#
+# Ručne: skopíruj tento súbor do /etc/systemd/system/, uprav cesty nižšie,
+# vytvor /etc/zoho-mail-mcp.env podľa zoho-mail-mcp.env.example a spusti
+#     systemctl daemon-reload && systemctl enable --now zoho-mail-mcp
 
 [Unit]
 Description=Zoho Mail MCP konektor (len na čítanie)
@@ -27,13 +30,14 @@ Restart=on-failure
 RestartSec=5s
 
 # Služba potrebuje len čítať svoj kód a chodiť na sieť.
+# AF_UNIX tam musí byť – cez lokálny socket ide rozlišovanie mien.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ProtectKernelTunables=true
 ProtectControlGroups=true
-RestrictAddressFamilies=AF_INET AF_INET6
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 RestrictNamespaces=true
 LockPersonality=true
 MemoryDenyWriteExecute=true

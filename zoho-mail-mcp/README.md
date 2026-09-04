@@ -172,18 +172,29 @@ sudo useradd --system --no-create-home --shell /usr/sbin/nologin zoho-mcp
 python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-Refresh token získaj podľa časti [Nastavenie](#nastavenie) vyššie. Potom:
+Zvyšok spraví inštalátor – nájde ZeroTier adresu, vygeneruje prístupový
+token, vytvorí `/etc/zoho-mail-mcp.env` s právami 0600, zapíše systemd unit
+a službu spustí:
 
 ```bash
-sudo cp zoho-mail-mcp/deploy/zoho-mail-mcp.env.example /etc/zoho-mail-mcp.env
-sudo chmod 600 /etc/zoho-mail-mcp.env
-sudo nano /etc/zoho-mail-mcp.env          # doplň Zoho údaje, token a ZeroTier adresu
-
-sudo cp zoho-mail-mcp/deploy/zoho-mail-mcp.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now zoho-mail-mcp
-systemctl status zoho-mail-mcp
+cd /opt/common-task/zoho-mail-mcp
+sudo bash deploy/install.sh
 ```
+
+Ak ZeroTier rozhranie nenájde, adresu mu podaj: `sudo bash deploy/install.sh
+--host 10.147.17.5`. Nič neprepisuje – existujúci `/etc/zoho-mail-mcp.env`
+nechá tak. Na konci vypíše hotový príkaz pre firemné počítače aj s tokenom.
+
+Prístupy do Zoho doplníš až potom; služba beží aj bez nich, len nástroje
+hlásia, že chýba konfigurácia:
+
+```bash
+sudo nano /etc/zoho-mail-mcp.env          # ZOHO_DC, CLIENT_ID, SECRET, REFRESH_TOKEN
+sudo systemctl restart zoho-mail-mcp
+```
+
+Ručná cesta bez inštalátora je popísaná v komentári v
+`deploy/zoho-mail-mcp.service`.
 
 Overenie, že služba žije (endpoint `/health` token nepýta):
 
