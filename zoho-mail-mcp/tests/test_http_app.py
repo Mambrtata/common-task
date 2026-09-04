@@ -87,7 +87,7 @@ def test_tools_are_listed_over_http(client):
     payload = _first_json_message(response)
     names = {tool["name"] for tool in payload["result"]["tools"]}
     assert "zoho_list_messages" in names
-    assert len(names) == 8
+    assert len(names) == 9
 
 
 def test_foreign_host_header_is_refused(client):
@@ -134,3 +134,46 @@ def _first_json_message(response):
                 return json.loads(line[len("data:"):].strip())
         raise AssertionError(f"V streame nie sú dáta: {response.text!r}")
     return response.json()
+
+
+@pytest.fixture
+def files_client(tmp_path, monkeypatch):
+    """Aplikácia s priečinkom príloh nasmerovaným do dočasného adresára."""
+    downloads = tmp_path / "prilohy"
+    downloads.mkdir()
+    (downloads / "faktura.pdf").write_bytes(b"%PDF-1.4 test")
+    (tmp_path / "tajomstvo.txt").write_bytes(b"toto sa von dostat nesmie")
+
+    monkeypatch.setenv("ZOHO_DOWNLOAD_DIR", str(downloads))
+    app = build_app(mcp, token=TOKEN, host=HOST, port=PORT)
+    with TestClient(app, base_url=f"http://{HOST}:{PORT}") as client:
+        yield client
+
+
+AUTH = {"Host": f"{HOST}:{PORT}", "Authorization": f"Bearer {TOKEN}"}
+
+
+def test_attachment_download_needs_a_token(files_client):
+    response = files_client.get("/files/faktura.pdf", headers={"Host": f"{HOST}:{PORT}"})
+    assert response.status_code == 401
+
+
+def test_attachment_is_served_with_a_token(files_client):
+    response = files_client.get("/files/faktura.pdf", headers=AUTH)
+    assert response.status_code == 200
+    assert response.content == b"%PDF-1.4 test"
+
+
+def test_missing_attachment_gives_404(files_client):
+    response = files_client.get("/files/neexistuje.pdf", headers=AUTH)
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["../tajomstvo.txt", "..%2Ftajomstvo.txt", "subdir/../../tajomstvo.txt"],
+)
+def test_path_traversal_is_refused(files_client, name):
+    response = files_client.get(f"/files/{name}", headers=AUTH)
+    assert response.status_code in (400, 404)
+    assert b"toto sa von dostat nesmie" not in response.content

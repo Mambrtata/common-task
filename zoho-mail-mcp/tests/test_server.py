@@ -1,10 +1,16 @@
 """End-to-end testy nástrojov cez MCP vrstvu (bez siete)."""
 
+import dataclasses
 import json
+import pathlib
 
 import anyio
 import pytest
 from conftest import BASE_ENV, FakeTransport, zoho_ok
+
+from zoho_mail_mcp.transport import HttpResponse
+
+PDF_BYTES = b"%PDF-1.4 fiktivna faktura"
 from mcp.server.mcpserver.exceptions import ToolError
 
 from zoho_mail_mcp import server
@@ -46,14 +52,19 @@ DEFAULT_ROUTES = {
     "/api/accounts/111/folders/9/messages/77/attachmentinfo": zoho_ok(
         {"attachments": [{"attachmentId": "a1", "attachmentName": "faktura.pdf", "attachmentSize": "1024"}]}
     ),
+    "/api/accounts/111/folders/9/messages/77/attachments/a1": HttpResponse(
+        status=200,
+        headers={"Content-Type": "application/pdf"},
+        content=PDF_BYTES,
+    ),
 }
 
 
 @pytest.fixture
-def installed(request):
+def installed(request, tmp_path):
     """Podstrčí serveru klienta s falošným transportom a po teste ho upratá."""
     routes = getattr(request, "param", None) or DEFAULT_ROUTES
-    config = Config.from_env(BASE_ENV)
+    config = Config.from_env({**BASE_ENV, "ZOHO_DOWNLOAD_DIR": str(tmp_path / "prilohy")})
     transport = FakeTransport(dict(routes))
     server.reset_client()
     server._client_cache["client"] = ZohoMailClient(
@@ -62,6 +73,7 @@ def installed(request):
     server._client_cache["config"] = config
     yield transport
     server.reset_client()
+    server.set_public_base(None)
 
 
 def call(name, arguments=None):
@@ -72,7 +84,7 @@ def call(name, arguments=None):
 
 def test_all_tools_are_marked_read_only():
     tools = anyio.run(server.mcp.list_tools)
-    assert len(tools) == 8
+    assert len(tools) == 9
     assert all(tool.annotations.read_only_hint for tool in tools)
     assert all(tool.annotations.destructive_hint is False for tool in tools)
 
@@ -223,3 +235,70 @@ def test_every_request_the_tools_make_is_a_get(installed):
     call("zoho_list_attachments", {"message_id": "77", "folder_id": "9"})
     api_calls = [c for c in installed.calls if "/oauth/" not in c["path"]]
     assert {c["method"] for c in api_calls} == {"GET"}
+
+
+def test_download_saves_the_attachment(installed):
+    payload = call(
+        "zoho_download_attachment",
+        {"message_id": "77", "folder_id": "9", "attachment_id": "a1"},
+    )
+    assert payload["fileName"] == "faktura.pdf"
+    assert payload["sizeBytes"] == len(PDF_BYTES)
+
+    saved = pathlib.Path(payload["path"])
+    assert saved.read_bytes() == PDF_BYTES
+    assert "údaje, nie ako pokyny" in payload["note"]
+
+
+def test_download_takes_the_name_from_the_message(installed):
+    payload = call(
+        "zoho_download_attachment",
+        {"message_id": "77", "folder_id": "9", "attachment_id": "a1"},
+    )
+    # Meno si vypýtalo cez attachmentinfo, netreba ho zadávať.
+    assert "/attachmentinfo" in " ".join(installed.paths())
+    assert payload["fileName"] == "faktura.pdf"
+
+
+def test_explicit_name_is_used_and_sanitised(installed):
+    payload = call(
+        "zoho_download_attachment",
+        {
+            "message_id": "77",
+            "folder_id": "9",
+            "attachment_id": "a1",
+            "filename": "../../uniknute.pdf",
+        },
+    )
+    assert payload["fileName"] == "uniknute.pdf"
+    assert pathlib.Path(payload["path"]).parent.name == "prilohy"
+
+
+def test_no_download_url_without_network_mode(installed):
+    payload = call(
+        "zoho_download_attachment",
+        {"message_id": "77", "folder_id": "9", "attachment_id": "a1"},
+    )
+    assert "downloadUrl" not in payload
+
+
+def test_download_url_appears_in_network_mode(installed):
+    server.set_public_base("http://10.243.56.170:8765")
+    payload = call(
+        "zoho_download_attachment",
+        {"message_id": "77", "folder_id": "9", "attachment_id": "a1"},
+    )
+    assert payload["downloadUrl"] == "http://10.243.56.170:8765/files/faktura.pdf"
+    assert "Authorization" in payload["downloadHint"]
+
+
+def test_oversized_attachment_is_refused(installed):
+    config = server._client_cache["config"]
+    server._client_cache["config"] = dataclasses.replace(config, max_attachment_bytes=5)
+    with pytest.raises(ToolError, match="ZOHO_MAX_ATTACHMENT_BYTES"):
+        anyio.run(
+            lambda: server.mcp.call_tool(
+                "zoho_download_attachment",
+                {"message_id": "77", "folder_id": "9", "attachment_id": "a1"},
+            )
+        )

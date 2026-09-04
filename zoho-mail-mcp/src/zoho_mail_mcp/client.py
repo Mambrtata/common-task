@@ -45,28 +45,39 @@ class ZohoMailClient:
 
     # ---------------------------------------------------------------- HTTP
 
-    def _request(self, method: str, path: str, params: Mapping[str, Any] | None = None) -> Any:
+    def _fetch(self, method: str, path: str, params: Mapping[str, Any] | None = None):
+        """Spoločná časť: zostaví URL, pošle GET a raz zopakuje pri starom tokene."""
         if method != "GET":
             raise ReadOnlyViolation(
                 f"Konektor je len na čítanie, {method} {path} sa nevykoná."
             )
 
-        query = _encode_params(params)
-        url = f"{self._config.api_base}{path}{query}"
-
+        url = f"{self._config.api_base}{path}{_encode_params(params)}"
         response = self._send(url)
-        payload = _parse_json(response.body, url, response.status)
-        error_code = _error_code(payload)
 
         # Token mohol medzitým vypršať alebo byť zrušený – jeden pokus s novým.
-        if response.status in (401, 403) or error_code in _TOKEN_ERROR_CODES:
+        if response.status in (401, 403) or _error_code_of(response) in _TOKEN_ERROR_CODES:
             self._tokens.invalidate()
             response = self._send(url)
-            payload = _parse_json(response.body, url, response.status)
-            error_code = _error_code(payload)
 
-        _raise_for_error(payload, url, response.status, error_code)
+        return url, response
+
+    def _request(self, method: str, path: str, params: Mapping[str, Any] | None = None) -> Any:
+        url, response = self._fetch(method, path, params)
+        payload = _parse_json(response.body, url, response.status)
+        _raise_for_error(payload, url, response.status, _error_code(payload))
         return payload.get("data") if isinstance(payload, dict) else payload
+
+    def _request_bytes(self, path: str, params: Mapping[str, Any] | None = None) -> bytes:
+        """Ako _request, ale vráti surové bajty – pre prílohy."""
+        url, response = self._fetch("GET", path, params)
+
+        # Pri chybe Zoho pošle JSON aj tam, kde inak posiela súbor.
+        if response.status >= 400 or _looks_like_json(response):
+            payload = _parse_json(response.body, url, response.status)
+            _raise_for_error(payload, url, response.status, _error_code(payload))
+
+        return response.content
 
     def _send(self, url: str):
         token = self._tokens.get_access_token()
@@ -208,6 +219,14 @@ class ZohoMailClient:
             return attachments if isinstance(attachments, list) else [data]
         return data if isinstance(data, list) else []
 
+    def get_attachment_content(
+        self, account_id: str, folder_id: str, message_id: str, attachment_id: str
+    ) -> bytes:
+        return self._request_bytes(
+            f"/api/accounts/{account_id}/folders/{folder_id}"
+            f"/messages/{message_id}/attachments/{attachment_id}"
+        )
+
     def list_thread_messages(
         self, account_id: str, thread_id: str, **params: Any
     ) -> list[dict[str, Any]]:
@@ -245,6 +264,28 @@ def _parse_json(body: str, url: str, http_status: int) -> Any:
             http_status=http_status,
             url=url,
         ) from exc
+
+
+def _looks_like_json(response: Any) -> bool:
+    """Rozlíši chybovú JSON odpoveď od skutočného súboru."""
+    content_type = ""
+    for key, value in (response.headers or {}).items():
+        if key.lower() == "content-type":
+            content_type = value.lower()
+            break
+    if "json" in content_type:
+        return True
+    # Bez hlavičky sa pozrieme na začiatok tela; súbory sa takto nezačínajú.
+    head = response.content[:1].lstrip() if response.content else b""
+    return head[:1] == b"{" and b'"status"' in response.content[:200]
+
+
+def _error_code_of(response: Any) -> str | None:
+    """Vytiahne errorCode z odpovede, ak je to vôbec JSON."""
+    try:
+        return _error_code(json.loads(response.body))
+    except (json.JSONDecodeError, TypeError):
+        return None
 
 
 def _error_code(payload: Any) -> str | None:

@@ -8,7 +8,8 @@ REST API a OAuth, takže netreba sťahovať poštu do súborov.
 
 - **Neodosiela maily.** Nástroj na odoslanie ani odpoveď neexistuje.
 - **Nič nemení.** Neoznačuje ako prečítané, nepresúva, nemaže, nerobí koncepty.
-- **Nesťahuje prílohy.** Vypíše len ich názov, veľkosť a typ.
+- **Prílohy sťahuje, ale nikam neposiela.** Uloží ich na disk servera; je to
+  čítanie, nie zápis do schránky.
 
 Nie je to len sľub v dokumentácii, drží to na troch úrovniach:
 
@@ -248,7 +249,8 @@ Log služby: `journalctl -u zoho-mail-mcp -f`
 | `zoho_search_messages` | hľadanie podľa odosielateľa, predmetu, textu, dátumu… |
 | `zoho_get_message` | jedna správa vrátane tela prevedeného na čistý text |
 | `zoho_get_thread` | všetky správy jedného vlákna |
-| `zoho_list_attachments` | metadáta príloh (nie obsah súborov) |
+| `zoho_list_attachments` | metadáta príloh – názov, veľkosť, `attachmentId` |
+| `zoho_download_attachment` | stiahne prílohu a uloží ju na disk servera |
 
 ### Typický postup
 
@@ -261,6 +263,27 @@ Log služby: `journalctl -u zoho-mail-mcp -f`
 
 Priečinok sa dá zadať názvom (`"INBOX"`, `"Faktúry"`) aj číslom – názov si
 konektor sám preloží na `folderId`.
+
+### Prílohy
+
+`zoho_list_attachments` vypíše `attachmentId`, `zoho_download_attachment` súbor
+stiahne a uloží do `ZOHO_DOWNLOAD_DIR` (predvolene
+`/var/lib/zoho-mail-mcp/attachments`). Väčšie súbory než
+`ZOHO_MAX_ATTACHMENT_BYTES` (predvolene 25 MB) odmietne.
+
+V sieťovom režime vráti aj `downloadUrl`. Stiahnutie vyžaduje tú istú hlavičku
+`Authorization` ako volania MCP:
+
+```bash
+curl -H "Authorization: Bearer <token>" \
+     -O http://10.243.56.170:8765/files/Faktura_8_2026.pdf
+```
+
+Názov súboru pochádza od odosielateľa, takže sa pred uložením očistí: oddeľovače
+ciest sa nahradia podčiarkovníkom, diakritika prepíše na ASCII a vedúce bodky
+zmažú. Príloha menom `../../etc/passwd` tak skončí ako `etc_passwd` vo vlastnom
+priečinku. Endpoint na výdaj súborov navyše overuje, že výsledná cesta z toho
+priečinka nevedie von.
 
 ### Vyhľadávanie
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from .errors import ConfigError
 
@@ -33,6 +34,10 @@ READ_ONLY_SCOPES: tuple[str, ...] = (
 )
 
 SCOPE_STRING = ",".join(READ_ONLY_SCOPES)
+
+# Kam sa ukladajú stiahnuté prílohy. Systemd unit tento priečinok vytvára
+# cez StateDirectory, takže je zapisovateľný aj pri ProtectSystem=strict.
+DEFAULT_DOWNLOAD_DIR = Path("/var/lib/zoho-mail-mcp/attachments")
 
 
 def _get(env: Mapping[str, str], name: str, default: str | None = None) -> str | None:
@@ -70,6 +75,8 @@ class Config:
     timeout: int = 30
     max_retries: int = 3
     max_content_chars: int = 20_000
+    download_dir: Path = DEFAULT_DOWNLOAD_DIR
+    max_attachment_bytes: int = 25 * 1024 * 1024
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Config:
@@ -116,6 +123,10 @@ class Config:
             timeout=_get_int(env, "ZOHO_TIMEOUT", 30),
             max_retries=_get_int(env, "ZOHO_MAX_RETRIES", 3, minimum=0),
             max_content_chars=_get_int(env, "ZOHO_MAX_CONTENT_CHARS", 20_000, minimum=500),
+            download_dir=download_dir_from_env(env),
+            max_attachment_bytes=_get_int(
+                env, "ZOHO_MAX_ATTACHMENT_BYTES", 25 * 1024 * 1024, minimum=1024
+            ),
         )
 
     def account_allowed(self, email: str | None) -> bool:
@@ -123,3 +134,9 @@ class Config:
         if not self.allowed_accounts:
             return True
         return bool(email) and email.lower() in self.allowed_accounts
+
+
+def download_dir_from_env(env: Mapping[str, str] | None = None) -> Path:
+    """Priečinok na prílohy. Potrebuje ho aj HTTP vrstva, ktorá Config nemá."""
+    env = os.environ if env is None else env
+    return Path(_get(env, "ZOHO_DOWNLOAD_DIR") or str(DEFAULT_DOWNLOAD_DIR))

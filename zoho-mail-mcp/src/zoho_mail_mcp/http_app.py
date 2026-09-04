@@ -13,11 +13,13 @@ import logging
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
-from starlette.responses import JSONResponse
+from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Mount, Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from .errors import ConfigError
+from .attachments import resolve_inside
+from .config import download_dir_from_env
+from .errors import ConfigError, ZohoMailMCPError
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,7 @@ MIN_TOKEN_LENGTH = 24
 
 MCP_PATH = "/mcp"
 HEALTH_PATH = "/health"
+FILES_PREFIX = "/files"
 
 
 class BearerTokenMiddleware:
@@ -117,8 +120,24 @@ def build_app(
     async def health(_request):
         return JSONResponse({"status": "ok", "service": "zoho-mail-mcp"})
 
+    downloads = download_dir_from_env()
+
+    async def files(request):
+        """Vydá stiahnutú prílohu. Za tokenom, len z priečinka s prílohami."""
+        try:
+            target = resolve_inside(downloads, request.path_params["name"])
+        except ZohoMailMCPError:
+            return JSONResponse({"error": "invalid_path"}, status_code=400)
+        if not target.is_file():
+            return JSONResponse({"error": "not_found"}, status_code=404)
+        return FileResponse(target, filename=target.name)
+
     app = Starlette(
-        routes=[Route(HEALTH_PATH, health, methods=["GET"]), Mount("/", app=inner)],
+        routes=[
+            Route(HEALTH_PATH, health, methods=["GET"]),
+            Route(FILES_PREFIX + "/{name:path}", files, methods=["GET"]),
+            Mount("/", app=inner),
+        ],
         lifespan=lambda scope: inner.router.lifespan_context(scope),
     )
     return BearerTokenMiddleware(app, token, exempt_paths=frozenset({HEALTH_PATH}))

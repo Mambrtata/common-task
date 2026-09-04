@@ -22,6 +22,11 @@ Group=zoho-mcp
 # Tu sú tokeny – súbor nech patrí rootovi a má práva 0600.
 EnvironmentFile=/etc/zoho-mail-mcp.env
 
+# Vytvorí /var/lib/zoho-mail-mcp pre službu a nechá ho zapisovateľný
+# aj pri ProtectSystem=strict. Sem sa ukladajú stiahnuté prílohy.
+StateDirectory=zoho-mail-mcp
+StateDirectoryMode=0750
+
 WorkingDirectory=/opt/common-task/zoho-mail-mcp
 Environment=PYTHONPATH=/opt/common-task/zoho-mail-mcp/src
 ExecStart=/usr/bin/python3 -m zoho_mail_mcp --transport http

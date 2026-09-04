@@ -17,6 +17,8 @@ class HttpResponse:
     status: int
     headers: Mapping[str, str] = field(default_factory=dict)
     body: str = ""
+    # Prílohy sú binárne, dekódovaním na text by sa poškodili.
+    content: bytes = b""
 
     def header(self, name: str) -> str | None:
         for key, value in self.headers.items():
@@ -41,16 +43,20 @@ def urlopen_transport(
         request.add_header(key, value)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
+            raw = response.read()
             return HttpResponse(
                 status=response.status,
                 headers=dict(response.headers.items()),
-                body=response.read().decode("utf-8", errors="replace"),
+                body=raw.decode("utf-8", errors="replace"),
+                content=raw,
             )
     except urllib.error.HTTPError as exc:  # Zoho posiela detaily chyby v tele
+        raw = exc.read()
         return HttpResponse(
             status=exc.code,
             headers=dict(exc.headers.items()) if exc.headers else {},
-            body=exc.read().decode("utf-8", errors="replace"),
+            body=raw.decode("utf-8", errors="replace"),
+            content=raw,
         )
 
 
