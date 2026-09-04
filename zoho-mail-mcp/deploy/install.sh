@@ -18,6 +18,7 @@ UNIT_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 SERVICE_USER="zoho-mcp"
 PORT="${ZOHO_MCP_PORT:-8765}"
 HOST="${ZOHO_MCP_HOST:-}"
+VENV_DIR="${VENV_DIR:-/opt/zoho-mail-mcp/venv}"
 
 PKG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UNIT_SRC="${PKG_DIR}/deploy/${SERVICE_NAME}.service"
@@ -29,10 +30,11 @@ die()   { printf '\033[31mChyba:\033[0m %s\n' "$1" >&2; exit 1; }
 
 usage() {
     cat <<'USAGE'
-Použitie: sudo bash deploy/install.sh [--host ADRESA] [--port PORT]
+Použitie: sudo bash deploy/install.sh [--host ADRESA] [--port PORT] [--venv CESTA]
 
   --host   adresa, na ktorú sa služba viaže (predvolene sa nájde ZeroTier adresa)
   --port   port služby (predvolene 8765)
+  --venv   kam vytvoriť virtualenv (predvolene /opt/zoho-mail-mcp/venv)
 USAGE
 }
 
@@ -40,6 +42,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --host) HOST="${2:-}"; [[ -n "$HOST" ]] || die "--host potrebuje adresu"; shift 2 ;;
         --port) PORT="${2:-}"; [[ "$PORT" =~ ^[0-9]+$ ]] || die "--port potrebuje číslo"; shift 2 ;;
+        --venv) VENV_DIR="${2:-}"; [[ -n "$VENV_DIR" ]] || die "--venv potrebuje cestu"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) usage >&2; die "neznámy prepínač $1" ;;
     esac
@@ -67,27 +70,43 @@ info "Služba bude počúvať na ${HOST}:${PORT}"
 
 # --- 2. závislosti ----------------------------------------------------------
 
-PYTHON="$(command -v python3)" || die "python3 na tomto stroji nie je.
+SYS_PYTHON="$(command -v python3)" || die "python3 na tomto stroji nie je.
      Doinštaluj ho: sudo apt install python3"
 
 # Knižnica mcp potrebuje aspoň Python 3.10.
-if ! "$PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'; then
-    VERSION="$("$PYTHON" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+if ! "$SYS_PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'; then
+    VERSION="$("$SYS_PYTHON" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
     die "potrebujem Python 3.10 alebo novší, tento stroj má ${VERSION}.
      Na starších systémoch pomôže novší Python z backportov alebo z deadsnakes."
 fi
 
-if ! "$PYTHON" -m pip --version >/dev/null 2>&1; then
-    die "python3 nemá pip.
-     Doinštaluj ho: sudo apt install python3-pip
-     (na Fedore: sudo dnf install python3-pip)"
+# Do systémového Pythonu sa na Debiane a Ubuntu inštalovať nedá (PEP 668) a
+# --break-system-packages by prepisoval balíčky z apt-u. Vlastný virtualenv nič
+# systémové nevymieňa a dá sa kedykoľvek zmazať a spraviť odznova.
+if ! "$SYS_PYTHON" -c 'import venv, ensurepip' >/dev/null 2>&1; then
+    die "python3 nevie robiť virtualenvy.
+     Doinštaluj ho: sudo apt install python3-venv
+     (na Fedore býva súčasťou balíka python3)"
 fi
 
+if [[ -x "${VENV_DIR}/bin/python" ]]; then
+    info "Virtualenv ${VENV_DIR} už existuje"
+else
+    info "Vytváram virtualenv ${VENV_DIR}"
+    mkdir -p "$(dirname "$VENV_DIR")"
+    "$SYS_PYTHON" -m venv "$VENV_DIR" || die "vytvorenie virtualenvu zlyhalo."
+fi
+
+PYTHON="${VENV_DIR}/bin/python"
+
 info "Inštalujem Python závislosti"
-"$PYTHON" -m pip install --break-system-packages --quiet \
-        "mcp>=2.0,<3.0" "starlette>=0.40" "uvicorn>=0.30" \
-    || "$PYTHON" -m pip install --quiet "mcp>=2.0,<3.0" "starlette>=0.40" "uvicorn>=0.30" \
+"$PYTHON" -m pip install --quiet --upgrade pip \
+    || warn "pip sa nepodarilo aktualizovať, skúšam pokračovať"
+"$PYTHON" -m pip install --quiet "mcp>=2.0,<3.0" "starlette>=0.40" "uvicorn>=0.30" \
     || die "inštalácia závislostí zlyhala."
+
+# Služba beží pod iným používateľom a musí si vedieť venv prečítať.
+chmod -R a+rX "$VENV_DIR"
 
 # --- 3. systémový používateľ ------------------------------------------------
 

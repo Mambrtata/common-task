@@ -160,17 +160,16 @@ požiadavka bez správnej hlavičky končí na 401.
 ### Na serveri
 
 ```bash
+sudo apt install -y git python3-venv
 sudo git clone https://github.com/Mambrtata/common-task.git /opt/common-task
 cd /opt/common-task
 sudo git checkout claude/zoho-mail-mcp-connector-q63ki8
-sudo python3 -m pip install --break-system-packages "mcp>=2.0,<3.0" starlette uvicorn
-
-# Používateľ bez domovského adresára a bez shellu
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin zoho-mcp
-
-# Token pre klientov
-python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
+
+Závislosti si inštalátor dá do vlastného virtualenvu v `/opt/zoho-mail-mcp/venv`.
+Do systémového Pythonu sa na Debiane a Ubuntu inštalovať nedá (PEP 668) a
+`--break-system-packages` by prepisoval balíčky z apt-u; virtualenv nič
+systémové nemení a dá sa kedykoľvek zmazať a spraviť odznova.
 
 Zvyšok spraví inštalátor – nájde ZeroTier adresu, vygeneruje prístupový
 token, vytvorí `/etc/zoho-mail-mcp.env` s právami 0600, zapíše systemd unit
