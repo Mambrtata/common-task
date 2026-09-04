@@ -7,7 +7,7 @@ from zoho_mail_mcp.attachments import (
     resolve_inside,
     safe_filename,
     save_attachment,
-    unique_path,
+    target_path,
 )
 from zoho_mail_mcp.errors import ZohoMailMCPError
 
@@ -91,9 +91,33 @@ def test_directory_is_created_when_missing(tmp_path):
     assert nested.is_dir()
 
 
-def test_unique_path_gives_up_gracefully(tmp_path):
-    (tmp_path / "x.pdf").write_bytes(b"")
-    assert unique_path(tmp_path, "x.pdf").name == "x-1.pdf"
+def test_same_attachment_twice_does_not_make_a_copy(tmp_path):
+    first = save_attachment(tmp_path, "faktura.pdf", b"rovnaka", max_bytes=1000)
+    second = save_attachment(tmp_path, "faktura.pdf", b"rovnaka", max_bytes=1000)
+    assert first == second
+    assert len(list(tmp_path.iterdir())) == 1
+
+
+def test_repeated_downloads_do_not_pile_up(tmp_path):
+    for _ in range(5):
+        save_attachment(tmp_path, "faktura.pdf", b"rovnaka", max_bytes=1000)
+    assert len(list(tmp_path.iterdir())) == 1
+
+
+def test_matching_copy_is_reused_even_when_numbered(tmp_path):
+    save_attachment(tmp_path, "faktura.pdf", b"prva", max_bytes=1000)
+    druha = save_attachment(tmp_path, "faktura.pdf", b"druha", max_bytes=1000)
+    assert druha.name == "faktura-1.pdf"
+    # Tretie stiahnutie druhého obsahu už nič nové nevytvorí.
+    znova = save_attachment(tmp_path, "faktura.pdf", b"druha", max_bytes=1000)
+    assert znova == druha
+    assert len(list(tmp_path.iterdir())) == 2
+
+
+def test_target_path_reports_whether_it_already_exists(tmp_path):
+    (tmp_path / "x.pdf").write_bytes(b"obsah")
+    assert target_path(tmp_path, "x.pdf", b"obsah") == (tmp_path / "x.pdf", True)
+    assert target_path(tmp_path, "x.pdf", b"ine") == (tmp_path / "x-1.pdf", False)
 
 
 def test_resolve_inside_accepts_plain_names(tmp_path):

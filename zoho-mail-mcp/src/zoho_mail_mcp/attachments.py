@@ -53,20 +53,33 @@ def safe_filename(name: str | None) -> str:
     return text
 
 
-def unique_path(directory: Path, filename: str) -> Path:
-    """Nájde voľné meno, nech nová príloha neprepíše staršiu."""
-    candidate = directory / filename
-    if not candidate.exists():
-        return candidate
-
+def _candidate_names(filename: str):
+    """Postupne filename, filename-1, filename-2, …"""
+    yield filename
     stem, dot, suffix = filename.rpartition(".")
     if not dot:
         stem, suffix = filename, ""
     for index in range(1, 1000):
-        name = f"{stem}-{index}.{suffix}" if suffix else f"{stem}-{index}"
+        yield f"{stem}-{index}.{suffix}" if suffix else f"{stem}-{index}"
+
+
+def _same_content(path: Path, content: bytes) -> bool:
+    return path.stat().st_size == len(content) and path.read_bytes() == content
+
+
+def target_path(directory: Path, filename: str, content: bytes) -> tuple[Path, bool]:
+    """Kam prílohu uložiť. Druhá hodnota hovorí, či tam už taká leží.
+
+    Rovnaká príloha stiahnutá druhýkrát nevytvára kópiu – vráti sa pôvodný
+    súbor. Kópia vznikne len vtedy, keď sa pod tým istým menom skrýva iný
+    obsah, aby sa staršia príloha neprepísala.
+    """
+    for name in _candidate_names(filename):
         candidate = directory / name
         if not candidate.exists():
-            return candidate
+            return candidate, False
+        if _same_content(candidate, content):
+            return candidate, True
     raise ZohoMailMCPError(f"V {directory} sa nedá nájsť voľné meno pre {filename!r}.")
 
 
@@ -81,7 +94,10 @@ def save_attachment(
         )
 
     directory.mkdir(parents=True, exist_ok=True)
-    target = unique_path(directory, safe_filename(filename))
+    target, already_there = target_path(directory, safe_filename(filename), content)
+    if already_there:
+        return target
+
     target.write_bytes(content)
     target.chmod(0o640)
     return target
