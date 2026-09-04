@@ -67,7 +67,21 @@ info "Služba bude počúvať na ${HOST}:${PORT}"
 
 # --- 2. závislosti ----------------------------------------------------------
 
-PYTHON="$(command -v python3)" || die "python3 na tomto stroji nie je."
+PYTHON="$(command -v python3)" || die "python3 na tomto stroji nie je.
+     Doinštaluj ho: sudo apt install python3"
+
+# Knižnica mcp potrebuje aspoň Python 3.10.
+if ! "$PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'; then
+    VERSION="$("$PYTHON" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+    die "potrebujem Python 3.10 alebo novší, tento stroj má ${VERSION}.
+     Na starších systémoch pomôže novší Python z backportov alebo z deadsnakes."
+fi
+
+if ! "$PYTHON" -m pip --version >/dev/null 2>&1; then
+    die "python3 nemá pip.
+     Doinštaluj ho: sudo apt install python3-pip
+     (na Fedore: sudo dnf install python3-pip)"
+fi
 
 info "Inštalujem Python závislosti"
 "$PYTHON" -m pip install --break-system-packages --quiet \
