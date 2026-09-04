@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import argparse
 import functools
 import json
+import logging
+import os
+import sys
 from typing import Any
 
 import anyio.to_thread
@@ -13,7 +17,7 @@ from mcp.types import ToolAnnotations
 
 from .client import ZohoMailClient
 from .config import READ_ONLY_SCOPES, Config
-from .errors import ZohoMailMCPError
+from .errors import ConfigError, ZohoMailMCPError
 from .html_text import html_to_text, truncate
 from .search import build_search_key
 from .views import account_summary, attachment_summary, folder_summary, message_summary
@@ -441,9 +445,83 @@ async def zoho_list_attachments(
     )
 
 
-def main() -> None:
-    """Vstupný bod: MCP cez stdio."""
-    mcp.run("stdio")
+def _env_port(name: str, default: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        raise ConfigError(f"{name} musí byť číslo portu, dostal som {raw!r}.") from None
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="zoho-mail-mcp",
+        description=(
+            "MCP konektor na Zoho Mail, len na čítanie. Predvolene beží cez "
+            "stdio pre jedného klienta na tom istom stroji; s --transport http "
+            "sa z neho stane sieťová služba pre viacero klientov."
+        ),
+    )
+    parser.add_argument(
+        "--transport",
+        choices=("stdio", "http"),
+        default=os.environ.get("ZOHO_MCP_TRANSPORT", "stdio"),
+        help="stdio (predvolené) alebo http",
+    )
+    parser.add_argument(
+        "--host",
+        default=os.environ.get("ZOHO_MCP_HOST", "127.0.0.1"),
+        help=(
+            "adresa, na ktorú sa server viaže v režime http; "
+            "zadaj priamo ZeroTier adresu servera"
+        ),
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="port v režime http (predvolene 8765)",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Vstupný bod konzolového príkazu."""
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    if args.transport == "stdio":
+        mcp.run("stdio")
+        return
+
+    # Sieťový režim: log ide na stderr, stdout ostáva čistý.
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        stream=sys.stderr,
+    )
+
+    from .http_app import serve_http
+
+    try:
+        port = args.port if args.port is not None else _env_port("ZOHO_MCP_PORT", 8765)
+        allowed = [
+            host.strip()
+            for host in os.environ.get("ZOHO_MCP_ALLOWED_HOSTS", "").split(",")
+            if host.strip()
+        ]
+        serve_http(
+            mcp,
+            token=os.environ.get("ZOHO_MCP_AUTH_TOKEN", "").strip(),
+            host=args.host,
+            port=port,
+            allowed_hosts=allowed or None,
+        )
+    except ConfigError as exc:
+        print(f"Chyba konfigurácie: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
 
 
 if __name__ == "__main__":

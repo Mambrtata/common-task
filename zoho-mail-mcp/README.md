@@ -142,6 +142,97 @@ prejaví sa to až v novej session, nie v tej rozbehnutej.
 > uzavretejšie, drž konektor lokálne, alebo si preň založ samostatné
 > prostredie, ktoré nepoužívaš na bežnú prácu.
 
+## Sieťový režim: jeden server, viac klientov
+
+Cez stdio beží konektor vždy vedľa toho procesu Claude Code, ktorý ho volá –
+na jednom stroji, pre jedného klienta. Ak má z pošty čítať viacero firemných
+inštalácií Claude Code, treba ho spustiť ako sieťovú službu:
+
+```
+firemný počítač A ─┐
+firemný počítač B ─┼─ ZeroTier ─→ server:8765 ─→ Zoho Mail API
+firemný počítač C ─┘
+```
+
+Prístup chráni zdieľaný bearer token. Bez neho sa server ani nespustí a každá
+požiadavka bez správnej hlavičky končí na 401.
+
+### Na serveri
+
+```bash
+sudo git clone https://github.com/Mambrtata/common-task.git /opt/common-task
+cd /opt/common-task
+sudo git checkout claude/zoho-mail-mcp-connector-q63ki8
+sudo python3 -m pip install --break-system-packages "mcp>=2.0,<3.0" starlette uvicorn
+
+# Používateľ bez domovského adresára a bez shellu
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin zoho-mcp
+
+# Token pre klientov
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Refresh token získaj podľa časti [Nastavenie](#nastavenie) vyššie. Potom:
+
+```bash
+sudo cp zoho-mail-mcp/deploy/zoho-mail-mcp.env.example /etc/zoho-mail-mcp.env
+sudo chmod 600 /etc/zoho-mail-mcp.env
+sudo nano /etc/zoho-mail-mcp.env          # doplň Zoho údaje, token a ZeroTier adresu
+
+sudo cp zoho-mail-mcp/deploy/zoho-mail-mcp.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now zoho-mail-mcp
+systemctl status zoho-mail-mcp
+```
+
+Overenie, že služba žije (endpoint `/health` token nepýta):
+
+```bash
+curl http://10.147.17.5:8765/health
+# {"status":"ok","service":"zoho-mail-mcp"}
+```
+
+**Viaž sa priamo na ZeroTier adresu**, nie na `0.0.0.0`. Služba potom nie je
+dostupná z domácej LAN ani z internetu a zároveň sedí kontrola hlavičky `Host`.
+
+### Na firemných počítačoch
+
+```bash
+claude mcp add --transport http zoho-mail http://10.147.17.5:8765/mcp \
+  --scope user \
+  --header "Authorization: Bearer <token>"
+```
+
+`--scope user` znamená, že konektor je dostupný vo všetkých projektoch na tom
+počítači a token sa uloží do `~/.claude.json`, nie do repozitára.
+
+Potom stačí povedať „zavolaj `zoho_check_connection`".
+
+### Čo si pri tomto uvedomiť
+
+- **Token je jediná hranica.** Ktokoľvek, kto ho má a je v ZeroTier sieti, číta
+  obe schránky. Konektor nerozlišuje, kto sa pýta – nemá používateľov ani
+  oddelené oprávnenia. Ak má niekto vidieť menej, potrebuje vlastnú inštanciu
+  s vlastným Zoho tokenom a `ZOHO_ALLOWED_ACCOUNTS`.
+- **Šifrovanie rieši ZeroTier.** Prevádzka medzi uzlami je šifrovaná, takže
+  obyčajné HTTP vnútri siete je v poriadku. Na verejnú IP to nevystavuj – tam
+  by to chcelo HTTPS a reverznú proxy.
+- **Rotácia tokenu**: zmeň `ZOHO_MCP_AUTH_TOKEN`, reštartuj službu a uprav
+  `--header` na klientoch. Starý token okamžite prestane platiť.
+- **Server je jediný bod zlyhania.** Keď je dole alebo ZeroTier nebeží,
+  konektor jednoducho nie je dostupný; pošta tým netrpí.
+
+### Keď to nefunguje
+
+| Prejav | Príčina |
+|---|---|
+| `401 unauthorized` | chýba alebo nesedí `--header "Authorization: Bearer …"` |
+| `Invalid Host header` v logu | viažeš sa na `0.0.0.0`; doplň `ZOHO_MCP_ALLOWED_HOSTS=10.147.17.5:8765` |
+| spojenie vyprší | ZeroTier nebeží alebo uzol nie je schválený v sieti |
+| služba sa nespustí, exit 2 | chýba `ZOHO_MCP_AUTH_TOKEN` alebo je kratší ako 24 znakov |
+
+Log služby: `journalctl -u zoho-mail-mcp -f`
+
 ## Nástroje
 
 | Nástroj | Čo robí |
