@@ -40,6 +40,12 @@ spec = importlib.util.spec_from_file_location("vyhodnotenie",
                                               HERE / "03_vyhodnotenie.py")
 v = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(v)
+# KROS „vlastná položka" je cenníková položka s pripojenou príponou
+# (625250058 -> 62525005810), takže kód môže mať aj 10-12 číslic. Krok 3
+# ich zámerne nepozná (do databázy sa majú dostať len čisté cenníkové
+# kódy), tu ich ale potrebujeme rozoznať a skrátiť na základ.
+v.RE_TSKP = re.compile(r"^\d{6,12}([.-]\w+)?$")
+
 spec4 = importlib.util.spec_from_file_location("postav",
                                                HERE / "04_postav_db.py")
 # 04 má pri importe argparse až v main(), takže sa dá bezpečne načítať
@@ -108,6 +114,8 @@ def najdi(polozka, podla_kodu, podla_mj):
     """
     mj = (polozka["mj"] or "").lower()
     kod = polozka["kod"].split(".")[0].split("-")[0] if polozka["kod"] else ""
+    if len(kod) > 9:
+        kod = kod[:9]          # KROS vlastná položka -> cenníkový základ
     if kod:
         # zhodný kód a MJ je najsilnejšia zhoda; vyber najčastejší variant
         kand = podla_kodu.get((kod, mj))
@@ -140,10 +148,80 @@ def najdi(polozka, podla_kodu, podla_mj):
     return None, ""
 
 
-# MJ, ktoré firmy píšu vo vlastných ponukách (okrem tých z kroku 3)
+# MJ, ktoré sa v ponukách objavujú (navyše k tým z kroku 3)
 MJ_CP = set(v.MJ_ZNAME) | {"m²", "m³", "kpl", "kpl.", "komplet", "súbor",
                            "subor", "súb.", "sub.", "bm", "mb", "hod.",
                            "hodina", "l", "ms", "pár", "par", "bal"}
+
+
+def mnozstvo_a_cena(cisla):
+    """Z čísel v riadku vyber (množstvo, jednotková cena).
+
+    Krok 4 hľadá trojicu v susedných bunkách, čo v KROS exporte neplatí:
+    stĺpce sú „Množstvo | Montáž | Materiál | Cena celkom", takže pri
+    nulovom materiáli susedná trojica nevyjde. Preto hľadáme ľubovoľnú
+    dvojicu (jedn. cena, cena celkom), pre ktorú platí
+    množstvo × jedn. cena ≈ cena celkom. To zároveň odfiltruje riadky,
+    kde sa čísla len tak povaľujú (hmotnosti, sutina).
+    """
+    if not cisla:
+        return 0, None
+    mn = cisla[0]
+    if mn <= 0:
+        return mn, None
+    for i in range(1, len(cisla)):
+        jc = cisla[i]
+        if jc <= 0:
+            continue
+        for k in range(1, len(cisla)):
+            if k == i or cisla[k] <= 0:
+                continue
+            if abs(mn * jc - cisla[k]) <= max(0.02 * cisla[k], 0.05):
+                return mn, jc
+    return mn, None
+
+
+def polozky_xlsx(data: bytes, subor: str):
+    """Riadky, ktoré vyzerajú ako položka výkazu – s kódom aj bez neho.
+
+    Kód nie je podmienka: vlastná ponuka firmy ho zvyčajne nemá, a aj
+    v KROS exporte bývajú vlastné položky („Elektroinštalácia, súb").
+    """
+    import openpyxl
+    polozky = []
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True,
+                                    data_only=True)
+    except Exception:
+        return polozky
+    for ws in wb.worksheets:
+        for row in ws.iter_rows(values_only=True):
+            hodnoty = [c for c in row if c is not None]
+            if len(hodnoty) < 3:
+                continue
+            mj = next((str(c).strip().lower() for c in hodnoty
+                       if str(c).strip().lower() in MJ_CP), None)
+            if not mj:
+                continue
+            kod = next((str(c).strip() for c in hodnoty
+                        if v.RE_TSKP.match(str(c).strip())), "")
+            popis = max((str(c) for c in hodnoty
+                         if isinstance(c, str) and len(str(c).strip()) > 8
+                         and not v.RE_TSKP.match(str(c).strip())),
+                        key=len, default="")
+            if not popis and not kod:
+                continue
+            cisla = [c for c in hodnoty if isinstance(c, (int, float))
+                     and not isinstance(c, bool)]
+            if len(cisla) < 2:
+                continue
+            mn, cena = mnozstvo_a_cena(cisla)
+            kod, popis = p4.normalizuj_polozku(kod, popis.strip())
+            polozky.append({"subor": subor, "harok": ws.title, "kod": kod,
+                            "popis": popis[:120], "mj": mj,
+                            "mnozstvo": mn, "jedn_cena": cena})
+    wb.close()
+    return polozky
 
 
 def kandidati(polozka, podla_mj, kolko=3):
@@ -233,21 +311,7 @@ def polozky_zo_suboru(cesta: pathlib.Path):
                              "jedn_cena": cena})
         return vysledok
     for meno, data in v.najdi_xlsx(cesta) or []:
-        s_kodmi = []
-        for p in v.extrahuj_polozky(data):
-            kod, popis = p4.normalizuj_polozku(p.get("kod", ""),
-                                               p.get("popis", ""))
-            mn, cena = p4.mnozstvo_a_cena(p.get("cisla", []), "xlsx")
-            s_kodmi.append({"subor": meno, "harok": p.get("harok", ""),
-                            "kod": kod, "popis": popis,
-                            "mj": p.get("mj", ""), "mnozstvo": mn,
-                            "jedn_cena": cena})
-        # KROS výkaz má kódy; vlastná ponuka firmy zvyčajne nie
-        if len(s_kodmi) >= 3:
-            vysledok += s_kodmi
-        else:
-            bez = polozky_bez_kodov(data, meno)
-            vysledok += bez if len(bez) > len(s_kodmi) else s_kodmi
+        vysledok += polozky_xlsx(data, meno)
     return vysledok
 
 
