@@ -22,7 +22,9 @@ databáza slúži na:
    (napr. k ETICS aj lepenie, kotvenie, sieťka, lišty, lešenie, presun hmôt).
 2. **Orientačné ocenenie v skorej fáze** (štúdia, DUR) – trhové ceny
    namiesto smerných.
-3. **Kontrolu rozpočtu** – porovnať ceny z CENKROS-u s reálnym trhom.
+3. **Kontrolu rozpočtu alebo cudzej cenovej ponuky** – porovnať ceny
+   z CENKROS-u, prípadne ponuku od dodávateľa, s reálnym trhom
+   (`14_kontrola_cp.py`).
 4. **Hľadanie alternatív** – čo použili iní na porovnateľnej stavbe
    (napr. kaskáda menších tepelných čerpadiel namiesto jedného veľkého).
 
@@ -104,6 +106,7 @@ python run_local.py               # celý zber z ÚVO + build ceny.db
 python run_local.py --vlakna 4    # šetrnejšie k sieti
 python run_local.py --len-db      # len prebuduj DB z už stiahnutých dát
 
+python 14_kontrola_cp.py ponuka.xlsx --db ceny_spolu.db --csv kontrola.csv
 python 05_crz.py --dni 1460       # zmluvy z CRZ (4 roky dozadu)
 python 09_rozpis_vymery.py --db ceny_spolu.db
 python 08_zluc.py --do ceny_spolu.db ceny-cloud.db data/ceny.db
@@ -123,6 +126,8 @@ python 08_zluc.py --do ceny_spolu.db ceny-cloud.db data/ceny.db
 | `10_pd_sluzby.py` | ceny projektových služieb (CPV 71xx) |
 | `11_pd_prehlad.py` | vyhodnotenie cien PD (pomer konečná/PHZ) |
 | `12_pd_do_db.py` | nahrá ceny PD do databázy |
+| `13_pd_db.py` | postaví samostatnú `pd.db` len na projektové služby |
+| `14_kontrola_cp.py` | kontrola cenovej ponuky/rozpočtu proti databáze |
 | `run_local.py` | spúšťač celého zberu s auto-reštartom vlákien |
 
 `data/` sa neverzuje (surové PDF/xlsx sú medziprodukt, dajú sa stiahnuť znova).
@@ -138,3 +143,29 @@ Stav zberu drží `data/hotovo.txt` – reštart pokračuje tam, kde skončil.
   Preto pracujeme s rozpisom výmery (viď `rozpis_vymery`).
 - Zdroje sú verejné dokumenty; pri publikovaní dát navonok drž pri každej
   cene `zdroj_url`, nech je dohľadateľná.
+
+## Kontrola cudzej cenovej ponuky (`14_kontrola_cp.py`)
+
+```bash
+python 14_kontrola_cp.py "ponuka.xlsx" --db ceny_spolu.db --csv kontrola.csv
+python 14_kontrola_cp.py ponuka.pdf --min-dopad 200   # len položky nad 200 €
+```
+
+Zvládne KROS výkaz (podľa TSKP kódov), vlastný formát firmy (bez kódov,
+podľa popisu a MJ) aj textové PDF. Ku každej položke vypíše cenu v ponuke,
+medián trhu, p25–p75, počet pozorovaní, odchýlku v % a **dopad v eurách**
+(= (cena − medián) × množstvo), zoradené podľa dopadu.
+
+Dve veci, ktoré skript zámerne nerobí, lebo by klamali:
+
+- **skladané položky** („zateplenie + fólie + práca") nedostanú cenu, iba
+  zoznam vrstiev, z ktorých sa dajú poskladať – porovnať zlúčenú položku
+  s jednou katalógovou vyjde ako niekoľkonásobné predraženie, hoci ide len
+  o zlúčenie viacerých vrstiev do jedného riadku;
+- **rovnaká veta pri inej hrúbke** sa nespáruje (poter 5 mm vs. 25 mm je
+  iná položka), tolerancia je 25 % hrúbky.
+
+Čo z toho vyplýva pri používaní: keď skript položku neporovná, nie je to
+chyba – je to signál, že sa k nej treba dostať po vrstvách. A odchýlka nad
+mediánom nie je dôkaz predraženia; môže ísť o iný výrobok, malé množstvo
+alebo horší prístup. Skript hovorí, kam sa pozrieť.
